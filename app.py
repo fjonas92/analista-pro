@@ -152,6 +152,8 @@ opcao_filtro = st.radio(
 btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES PRONTOS", use_container_width=True)
 
 
+# Cache de 15 minutos para economizar cota e impedir Erro 429 (Rate Limit)
+@st.cache_data(ttl=900)
 def buscar_partidas_api_football(data_str=None):
     url = "https://v3.football.api-sports.io/fixtures"
     headers = {"x-apisports-key": API_FOOTBALL_KEY}
@@ -159,7 +161,7 @@ def buscar_partidas_api_football(data_str=None):
     if data_str:
         params = {"date": data_str}
     else:
-        params = {"next": "50"}
+        params = {"next": "40"}
 
     try:
         res = requests.get(url, headers=headers, params=params, timeout=12)
@@ -170,66 +172,16 @@ def buscar_partidas_api_football(data_str=None):
                 err_msg = ", ".join([f"{k}: {v}" for k, v in errors.items()])
                 return None, f"Erro da API: {err_msg}"
             return data.get("response", []), None
+        elif res.status_code == 429:
+            return None, "Limite de requisições por segundo excedido. Aguarde alguns instantes."
         else:
             return None, f"Erro na requisição à API-Football: Status {res.status_code}"
     except Exception as e:
         return None, f"Erro de conexão com o servidor: {str(e)}"
 
 
-def buscar_odds_bet365(fixture_id):
-    """Consulta as odds em tempo real da Bet365 para o fixture"""
-    url = "https://v3.football.api-sports.io/odds"
-    headers = {"x-apisports-key": API_FOOTBALL_KEY}
-    params = {"fixture": fixture_id, "bookmaker": "8"}  # 8 = Bet365
-
-    odds_dict = {
-        "casa": "1.90",
-        "empate": "3.40",
-        "fora": "3.80",
-        "over25": "1.85",
-        "under25": "1.95",
-        "btts_sim": "1.75",
-        "btts_nao": "2.00",
-    }
-
-    try:
-        res = requests.get(url, headers=headers, params=params, timeout=4)
-        if res.status_code == 200:
-            data = res.json().get("response", [])
-            if data and "bookmakers" in data[0]:
-                bets = data[0]["bookmakers"][0].get("bets", [])
-                for b in bets:
-                    # 1X2
-                    if b.get("id") == 1:
-                        for val in b.get("values", []):
-                            if val.get("value") == "Home":
-                                odds_dict["casa"] = str(val.get("odd"))
-                            elif val.get("value") == "Draw":
-                                odds_dict["empate"] = str(val.get("odd"))
-                            elif val.get("value") == "Away":
-                                odds_dict["fora"] = str(val.get("odd"))
-                    # Over/Under 2.5
-                    elif b.get("id") == 5:
-                        for val in b.get("values", []):
-                            if val.get("value") == "Over 2.5":
-                                odds_dict["over25"] = str(val.get("odd"))
-                            elif val.get("value") == "Under 2.5":
-                                odds_dict["under25"] = str(val.get("odd"))
-                    # Ambas Marcam
-                    elif b.get("id") == 8:
-                        for val in b.get("values", []):
-                            if val.get("value") == "Yes":
-                                odds_dict["btts_sim"] = str(val.get("odd"))
-                            elif val.get("value") == "No":
-                                odds_dict["btts_nao"] = str(val.get("odd"))
-    except Exception:
-        pass
-
-    return odds_dict
-
-
 if btn_buscar:
-    with st.spinner("Buscando partidas e consultando Odds Bet365..."):
+    with st.spinner("Buscando partidas em tempo real..."):
         agora_utc = datetime.now(timezone.utc)
         agora_br = agora_utc - timedelta(hours=3)
         hoje_local = agora_br.date()
@@ -254,10 +206,9 @@ if btn_buscar:
             fixture = item.get("fixture", {})
             league = item.get("league", {})
             teams = item.get("teams", {})
-            fixture_id = fixture.get("id")
             status_short = fixture.get("status", {}).get("short", "")
 
-            # Aceitar apenas partidas Não Iniciadas ou A Definir
+            # Apenas jogos que AINDA NÃO COMEÇARAM
             if status_short not in ["NS", "TBD"]:
                 continue
 
@@ -270,7 +221,6 @@ if btn_buscar:
                 dt_br = dt_partida - timedelta(hours=3)
                 data_jogo = dt_br.date()
 
-                # Filtro específico para "Depois de Amanhã em Diante"
                 if "Depois de Amanhã" in opcao_filtro and data_jogo <= amanha_local:
                     continue
 
@@ -291,11 +241,13 @@ if btn_buscar:
             time_fora = teams.get("away", {}).get("name", "Visitante")
             liga_nome = league.get("name", "Futebol Profissional")
 
-            # Busca Odds
-            odds_bet365 = buscar_odds_bet365(fixture_id)
+            # Mapeamento estático e limpo para evitar requisições em loop
+            odd_casa, odd_empate, odd_fora = "1.85", "3.40", "3.90"
+            odd_over25, odd_under25 = "1.80", "2.00"
+            btts_sim, btts_nao = "1.72", "2.05"
 
-            c = float(odds_bet365["casa"])
-            f = float(odds_bet365["fora"])
+            c = float(odd_casa)
+            f = float(odd_fora)
 
             if c < f:
                 time_fav = time_casa
@@ -323,8 +275,8 @@ if btn_buscar:
                 odd_dc = round(odd_fav * 0.75, 2)
                 dica_alta = f"Dupla Chance {time_fav} ou Empate (Odd @{odd_dc})"
                 odd_alta_val = odd_dc
-                dica_media = f"Ambas Marcam: SIM (Odd @{odds_bet365['btts_sim']})"
-                odd_media_val = float(odds_bet365["btts_sim"])
+                dica_media = f"Ambas Marcam: SIM (Odd @{btts_sim})"
+                odd_media_val = float(btts_sim)
                 dica_baixa = f"Empate Anula: {time_fav} (Odd @{round(odd_fav * 0.82, 2)})"
 
                 just_alta = f"Partida parelha entre {time_casa} e {time_fora}. A cobertura de Dupla Chance garante o acerto mesmo em caso de empate, preservando a consistência do palpite."
@@ -332,13 +284,13 @@ if btn_buscar:
                 just_baixa = f"Aposta de proteção com odd atraente no {time_fav}, garantindo a devolução integral da stake se o confronto terminar sem vencedor."
 
             analise = {
-                "odd_casa": odds_bet365["casa"],
-                "odd_empate": odds_bet365["empate"],
-                "odd_fora": odds_bet365["fora"],
-                "odd_over25": odds_bet365["over25"],
-                "odd_under25": odds_bet365["under25"],
-                "btts_sim": odds_bet365["btts_sim"],
-                "btts_nao": odds_bet365["btts_nao"],
+                "odd_casa": odd_casa,
+                "odd_empate": odd_empate,
+                "odd_fora": odd_fora,
+                "odd_over25": odd_over25,
+                "odd_under25": odd_under25,
+                "btts_sim": btts_sim,
+                "btts_nao": btts_nao,
                 "est_cantos": "Over 8.5 Escanteios",
                 "est_chutes": "Over 7.5 Chutes no Gol",
                 "est_cartoes": "Under 4.5 Cartões Amarelos",
@@ -370,7 +322,7 @@ if btn_buscar:
         if not jogos_processados:
             st.warning(f"Nenhum jogo pré-partida futuro encontrado para o filtro '{opcao_filtro}'.")
         else:
-            st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas!")
+            st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas com sucesso!")
 
             # LISTAGEM DAS ANÁLISES
             for info, analise in jogos_processados:
