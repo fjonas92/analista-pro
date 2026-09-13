@@ -10,12 +10,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-THE_ODDS_API_KEY = "e484810f517d8e428f3cbf3e89e2973b"
-
-# Estilização CSS Personalizada
+# Oculta menus do Streamlit, cabeçalhos, rodapé e ícone do GitHub
 st.markdown(
     """
     <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppDeployButton {display:none;}
+    [data-testid="stHeader"] {display: none;}
+    
     .stApp {
         background-color: #121212;
         color: #FFFFFF;
@@ -77,18 +81,62 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Cabeçalho Principal
+# API Key da The Odds API
+THE_ODDS_API_KEY = st.secrets.get(
+    "THE_ODDS_API_KEY", "e484810f517d8e428f3cbf3e89e2973b"
+)
+
+# SENHAS/LICENÇAS VÁLIDAS
+LICENCAS_VALIDAS = [
+    "PRO-FUTEBOL-2026",
+    "VIP-ANALISTA-888",
+    "CLIENTE-PRO-01",
+    "ADMIN-MASTER-99",
+]
+
+# Inicializa estado de login
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+# --- TELA DE LOGIN ---
+if not st.session_state["autenticado"]:
+    st.markdown(
+        "<div class='main-header'><h1>🔒 ANALISTA PRO — ÁREA EXCLUSIVA</h1></div>",
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.subheader("Digite sua Chave de Acesso")
+        chave_input = st.text_input(
+            "Chave de Licença:", type="password", placeholder="Ex: PRO-FUTEBOL-2026"
+        )
+        btn_entrar = st.button("🔑 ENTRAR NO SISTEMA", use_container_width=True)
+
+        if btn_entrar:
+            if chave_input.strip() in LICENCAS_VALIDAS:
+                st.session_state["autenticado"] = True
+                st.success("Acesso liberado!")
+                st.rerun()
+            else:
+                st.error("❌ Chave de licença inválida ou expirada.")
+
+        st.markdown("---")
+        st.info("💡 Não tem uma chave de acesso? Adquira seu acesso VIP.")
+    st.stop()
+
+# --- ÁREA PRINCIPAL DO SISTEMA ---
 st.markdown(
     "<div class='main-header'><h1>⚽ ANALISTA PRO</h1></div>",
     unsafe_allow_html=True,
 )
 
-# Mapeamento de Datas
 dt_hoje = datetime.now()
 dt_amanha = dt_hoje + timedelta(days=1)
 dt_depois = dt_hoje + timedelta(days=2)
 
 datas_map = {
+    "Todos os Próximos Jogos": "todos",
     "Hoje": dt_hoje.strftime("%Y-%m-%d"),
     "Amanhã": dt_amanha.strftime("%Y-%m-%d"),
     "Depois de Amanhã": dt_depois.strftime("%Y-%m-%d"),
@@ -97,7 +145,7 @@ datas_map = {
 col_sel, col_btn = st.columns([1, 2])
 
 with col_sel:
-    opcao_dia = st.selectbox("Selecione o Dia:", list(datas_map.keys()))
+    opcao_dia = st.selectbox("Selecione o Filtro de Data:", list(datas_map.keys()))
 
 with col_btn:
     st.write("")
@@ -105,58 +153,60 @@ with col_btn:
     btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES", use_container_width=True)
 
 
-def carregar_jogos(data_alvo_str):
-    url_main = f"https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu&markets=h2h,totals"
+def carregar_jogos_api():
+    # Consulta a lista geral de próximos eventos esportivos
+    url = f"https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
     try:
-        res = requests.get(url_main, timeout=12)
-        if res.status_code != 200:
-            return None, f"Erro na API: status {res.status_code}"
-        return res.json(), None
+        res = requests.get(url, timeout=12)
+        if res.status_code == 200:
+            return res.json(), None
+        else:
+            return None, f"Status API: {res.status_code}"
     except Exception as e:
         return None, str(e)
 
 
 if btn_buscar:
-    data_alvo = datas_map[opcao_dia]
+    filtro_data = datas_map[opcao_dia]
 
-    with st.spinner("Conectando e buscando lista completa de jogos..."):
-        jogos_raw, erro = carregar_jogos(data_alvo)
+    with st.spinner("Buscando partidas disponíveis..."):
+        jogos_raw, erro = carregar_jogos_api()
 
     if erro:
-        st.error(f"⚠️ Erro de conexão: {erro}")
+        st.error(f"⚠️ Erro ao consultar a API: {erro}")
     elif not jogos_raw:
-        st.warning(f"Nenhum jogo encontrado para {opcao_dia}.")
+        st.warning("Nenhum evento encontrado no momento.")
     else:
-        agora_utc = datetime.now(timezone.utc)
         jogos_processados = []
 
         for item in jogos_raw:
+            # Garante que só processamos futebol
+            sport_key = item.get("sport_key", "")
+            if "soccer" not in sport_key:
+                continue
+
             time_casa = item.get("home_team", "Mandante")
             time_fora = item.get("away_team", "Visitante")
-            liga = item.get("sport_title", "Futebol")
-
+            liga = item.get("sport_title", "Futebol Global")
             data_raw = item.get("commence_time", "")
+
             data_formatada = "Data N/A"
             data_jogo_local_str = ""
 
             try:
-                dt_utc = datetime.strptime(
-                    data_raw, "%Y-%m-%dT%H:%M:%SZ"
-                ).replace(tzinfo=timezone.utc)
-                if dt_utc <= agora_utc:
-                    continue
-                dt_local = dt_utc - timedelta(hours=3)
+                dt_utc = datetime.strptime(data_raw, "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc
+                )
+                dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
                 data_formatada = dt_local.strftime("%d/%m - %H:%M")
                 data_jogo_local_str = dt_local.strftime("%Y-%m-%d")
             except Exception:
                 pass
 
-            if (
-                data_alvo
-                and data_jogo_local_str
-                and (data_jogo_local_str != data_alvo)
-            ):
-                continue
+            # Filtra data apenas se não for 'todos'
+            if filtro_data != "todos" and data_jogo_local_str:
+                if data_jogo_local_str != filtro_data:
+                    continue
 
             odd_casa, odd_empate, odd_fora = "N/A", "N/A", "N/A"
             odd_over25, odd_under25 = "N/A", "N/A"
@@ -170,7 +220,7 @@ if btn_buscar:
                                 odd_casa = out["price"]
                             elif out["name"] == time_fora:
                                 odd_fora = out["price"]
-                            elif out["name"].lower() == "draw":
+                            elif out["name"].lower() in ["draw", "empate"]:
                                 odd_empate = out["price"]
                     elif market["key"] == "totals":
                         for out in market.get("outcomes", []):
@@ -198,9 +248,7 @@ if btn_buscar:
             else:
                 odd_dc = round(c * 0.72, 2) if c < f else round(f * 0.72, 2)
                 equipe_dc = time_casa if c < f else time_fora
-                dica_alta = (
-                    f"Dupla Chance {equipe_dc} ou Empate (Odd @{odd_dc})"
-                )
+                dica_alta = f"Dupla Chance {equipe_dc} ou Empate (Odd @{odd_dc})"
                 odd_alta_val = odd_dc
                 dica_media = (
                     f"Over 2.5 Gols (Odd @{odd_over25})"
@@ -247,12 +295,10 @@ if btn_buscar:
 
         if not jogos_processados:
             st.warning(
-                f"Nenhum jogo pré-partida disponível para {opcao_dia}. As odds ainda não foram abertas."
+                "Nenhum jogo de futebol encontrado para esta seleção de filtro. Tente selecionar 'Todos os Próximos Jogos'."
             )
         else:
-            st.success(
-                f"✅ {len(jogos_processados)} jogos carregados com sucesso para {opcao_dia}!"
-            )
+            st.success(f"✅ {len(jogos_processados)} partidas encontradas!")
 
             for info, analise in jogos_processados:
                 with st.container():
@@ -274,16 +320,13 @@ if btn_buscar:
                             f"📈 **Gols (Over/Under 2.5):** Over 2.5: @{analise['odd_over25']} | Under 2.5: @{analise['odd_under25']}"
                         )
                         st.write(
-                            f"🚩 **Escanteios (Estimativa):** {analise['est_cantos']}"
+                            f"🚩 **Escanteios:** {analise['est_cantos']}"
                         )
                         st.write(
                             f"🎯 **Finalizações no Gol:** {analise['est_chutes']}"
                         )
                         st.write(
-                            f"🟨 **Cartões (Estimativa):** {analise['est_cartoes']}"
-                        )
-                        st.write(
-                            f"⚠️ **Faltas Cometidas:** {analise['est_faltas']}"
+                            f"🟨 **Cartões:** {analise['est_cartoes']}"
                         )
 
                         st.markdown("---")
@@ -303,7 +346,7 @@ if btn_buscar:
                         )
                         st.write("")
 
-            # Seção de Bilhetes Prontos
+            # BILHETES PRONTOS
             if len(jogos_processados) >= 2:
                 st.markdown("---")
                 st.subheader("🔥 BILHETES PRONTOS RECOMENDADOS 🔥")
@@ -345,29 +388,4 @@ if btn_buscar:
                         f"**🔹 DUPLA {idx} — ODD TOTAL: @{odd_total}**\n\n"
                         f"• {j1_info['casa']} vs {j1_info['fora']} ➔ {j1_an['dica_alta']}\n\n"
                         f"• {j2_info['casa']} vs {j2_info['fora']} ➔ {j2_an['dica_alta']}"
-                    )
-
-                jogos_mult = sorted(
-                    jogos_processados,
-                    key=lambda x: x[1]["odd_alta_val"],
-                    reverse=True,
-                )
-                mult_jogos = []
-                odd_mult = 1.0
-
-                for j_info, j_an in jogos_mult:
-                    mult_jogos.append((j_info, j_an))
-                    odd_mult *= j_an["odd_alta_val"]
-                    if odd_mult >= 4.00 and len(mult_jogos) >= 3:
-                        break
-
-                if odd_mult >= 4.00 and len(mult_jogos) >= 3:
-                    texto_mult = "\n\n".join(
-                        [
-                            f"• {ji['casa']} vs {ji['fora']} ➔ {ja['dica_alta']}"
-                            for ji, ja in mult_jogos
-                        ]
-                    )
-                    st.warning(
-                        f"**🔥 MÚLTIPLA DO DIA — ODD TOTAL: @{round(odd_mult, 2)}**\n\n{texto_mult}"
                     )
