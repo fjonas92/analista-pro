@@ -220,7 +220,7 @@ if btn_buscar:
                 if dt_utc <= agora_utc:
                     continue
 
-                dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
+                dt_local = dt_utc - timedelta(hours=3)
                 data_jogo = dt_local.date()
 
                 # Aplicando filtro escolhido
@@ -275,51 +275,31 @@ if btn_buscar:
 
             c, f = float(odd_casa), float(odd_fora)
 
-            # LÓGICA CORRIGIDA E TOTALMENTE COERENTE
-            if c <= 1.70:
-                # Favoritismo do Casa
-                favorito = time_casa
+            # DEFINIÇÃO DE FAVORITO E OVER 1.5 GOLS
+            if c < f:
+                time_fav = time_casa
                 odd_fav = c
-                dica_alta = f"Vitória do {time_casa} (Odd @{odd_casa})"
-                odd_alta_val = c
-                dica_media = f"Over 1.5 Gols (Odd @1.30)"
-                odd_media_val = 1.30
-                dica_baixa = f"Vitória do {time_casa} + Over 2.5 Gols (Odd @{round(c * 1.5, 2)})"
-            elif f <= 1.70:
-                # Favoritismo do Fora
-                favorito = time_fora
-                odd_fav = f
-                dica_alta = f"Vitória do {time_fora} (Odd @{odd_fora})"
-                odd_alta_val = f
-                dica_media = f"Over 1.5 Gols (Odd @1.30)"
-                odd_media_val = 1.30
-                dica_baixa = f"Vitória do {time_fora} + Over 2.5 Gols (Odd @{round(f * 1.5, 2)})"
             else:
-                # Jogo Equilibrado
-                if c < f:
-                    favorito = time_casa
-                    odd_dc = round(c * 0.72, 2)
-                    dica_alta = f"Dupla Chance {time_casa} ou Empate (Odd @{odd_dc})"
-                    odd_alta_val = odd_dc
-                    dica_media = (
-                        f"Over 2.5 Gols (Odd @{odd_over25})"
-                        if odd_over25 != "N/A"
-                        else "Over 1.5 Gols (Odd @1.35)"
-                    )
-                    odd_media_val = float(odd_over25) if odd_over25 != "N/A" else 1.35
-                    dica_baixa = f"Empate Anula: {time_casa} (Odd @{round(c * 0.82, 2)})"
-                else:
-                    favorito = time_fora
-                    odd_dc = round(f * 0.72, 2)
-                    dica_alta = f"Dupla Chance {time_fora} ou Empate (Odd @{odd_dc})"
-                    odd_alta_val = odd_dc
-                    dica_media = (
-                        f"Over 2.5 Gols (Odd @{odd_over25})"
-                        if odd_over25 != "N/A"
-                        else "Over 1.5 Gols (Odd @1.35)"
-                    )
-                    odd_media_val = float(odd_over25) if odd_over25 != "N/A" else 1.35
-                    dica_baixa = f"Empate Anula: {time_fora} (Odd @{round(f * 0.82, 2)})"
+                time_fav = time_fora
+                odd_fav = f
+
+            dica_vitoria = f"Vitória do {time_fav} (Odd @{odd_fav})"
+            dica_over15 = "Over 1.5 Gols (Odd @1.30)"
+            odd_over15_val = 1.30
+
+            if c <= 1.70 or f <= 1.70:
+                dica_alta = dica_vitoria
+                odd_alta_val = odd_fav
+                dica_media = dica_over15
+                odd_media_val = odd_over15_val
+                dica_baixa = f"Vitória do {time_fav} + Over 2.5 Gols (Odd @{round(odd_fav * 1.5, 2)})"
+            else:
+                odd_dc = round(odd_fav * 0.75, 2)
+                dica_alta = f"Dupla Chance {time_fav} ou Empate (Odd @{odd_dc})"
+                odd_alta_val = odd_dc
+                dica_media = dica_over15
+                odd_media_val = odd_over15_val
+                dica_baixa = f"Empate Anula: {time_fav} (Odd @{round(odd_fav * 0.85, 2)})"
 
             analise = {
                 "odd_casa": odd_casa,
@@ -345,8 +325,11 @@ if btn_buscar:
                 "dica_alta": dica_alta,
                 "dica_media": dica_media,
                 "dica_baixa": dica_baixa,
+                "dica_vitoria": dica_vitoria,
+                "odd_fav": odd_fav,
+                "dica_over15": dica_over15,
+                "odd_over15_val": odd_over15_val,
                 "odd_alta_val": odd_alta_val,
-                "odd_media_val": odd_media_val,
             }
 
             info = {
@@ -391,7 +374,7 @@ if btn_buscar:
                         st.write(f"🟨 **Cartões:** {analise['est_cartoes']}")
 
                         st.markdown("---")
-                        st.markdown("**🎯 INDICAÇÕES DE APOSTA (COERENTES):**")
+                        st.markdown("**🎯 INDICAÇÕES DE APOSTA:**")
 
                         st.markdown(
                             f"<span class='badge-alta'>🟢 CONFIANÇA ALTA</span> {analise['dica_alta']}",
@@ -411,13 +394,12 @@ if btn_buscar:
             st.markdown("---")
             st.subheader("🔥 BILHETES PRONTOS DA BANCA (DUPLAS E MÚLTIPLA DO DIA) 🔥")
 
-            # Filtra estritamente jogos de HOJE e AMANHÃ para os bilhetes
             jogos_bilhete = [j for j in jogos_processados if j[0]["eh_hoje_ou_amanha"]]
 
             if len(jogos_bilhete) < 2:
-                st.info("ℹ️ Os bilhetes prontos são gerados apenas para jogos de HOJE ou AMANHÃ. Não há jogos suficientes no período para montar os bilhetes.")
+                st.info("ℹ️ Os bilhetes prontos são gerados apenas para jogos de HOJE ou AMANHÃ. Adicione mais jogos nesses períodos.")
             else:
-                # 1. GERADOR DE DUPLAS (VARIANDO MERCADOS DE VITORIA/DUPLA CHANCE E GOLS)
+                # 1. DUPLAS FOCO EM FAVORITOS + OVER 1.5 GOLS (ODD MÍNIMA 1.60)
                 duplas = []
                 jogos_usados = set()
 
@@ -428,22 +410,17 @@ if btn_buscar:
                         if j in jogos_usados:
                             continue
 
-                        j1_info, j1_an = jogos_bilhete[i]
-                        j2_info, j2_an = jogos_bilhete[j]
+                        j1_i, j1_an = jogos_bilhete[i]
+                        j2_i, j2_an = jogos_bilhete[j]
 
-                        # Varia os mercados (Jogo 1: Vitória/DC, Jogo 2: Over Gols)
-                        palpite_1 = j1_an["dica_alta"]
-                        odd_p1 = j1_an["odd_alta_val"]
+                        # Seleção de Vitória do Favorito e Over 1.5 Gols
+                        p1, odd1 = j1_an["dica_vitoria"], j1_an["odd_fav"]
+                        p2, odd2 = j2_an["dica_over15"], j2_an["odd_over15_val"]
 
-                        palpite_2 = j2_an["dica_media"] # Usa Over 1.5 / Over 2.5 para variar
-                        odd_p2 = j2_an["odd_media_val"]
+                        odd_comb = round(odd1 * odd2, 2)
 
-                        odd_comb = round(odd_p1 * odd_p2, 2)
-
-                        if 1.65 <= odd_comb <= 2.60:
-                            duplas.append(
-                                (j1_info, palpite_1, j2_info, palpite_2, odd_comb)
-                            )
+                        if odd_comb >= 1.60:
+                            duplas.append((j1_i, p1, j2_i, p2, odd_comb))
                             jogos_usados.add(i)
                             jogos_usados.add(j)
                             break
@@ -452,32 +429,36 @@ if btn_buscar:
 
                 for idx, (j1_i, p1, j2_i, p2, odd_tot) in enumerate(duplas, start=1):
                     st.info(
-                        f"**🔹 DUPLA {idx} (MERCADOS VARIADOS) — ODD TOTAL: @{odd_tot}**\n\n"
+                        f"**🔹 DUPLA {idx} (FAVORITO + OVER 1.5 GOLS) — ODD TOTAL: @{odd_tot}**\n\n"
                         f"• [{j1_i['data_hora']}] {j1_i['casa']} vs {j1_i['fora']} ➔ {p1}\n\n"
                         f"• [{j2_i['data_hora']}] {j2_i['casa']} vs {j2_i['fora']} ➔ {p2}"
                     )
 
-                # 2. MÚLTIPLA DO DIA (COMBINANDO 3 OU 4 JOGOS)
-                if len(jogos_bilhete) >= 3:
-                    multipla_jogos = jogos_bilhete[:4] # Pega até 4 jogos de hoje/amanhã
-                    odd_multipla = 1.0
-                    linhas_multipla = []
+                # 2. MÚLTIPLA DO DIA (ODD MÍNIMA 4.00)
+                odd_multipla_acc = 1.0
+                itens_multipla = []
 
-                    for idx_m, (j_info, j_an) in enumerate(multipla_jogos):
-                        # Alterna palpites para manter segurança e variabilidade
-                        if idx_m % 2 == 0:
-                            palpite_m = j_an["dica_alta"]
-                            odd_m = j_an["odd_alta_val"]
-                        else:
-                            palpite_m = "Over 1.5 Gols (Odd @1.32)"
-                            odd_m = 1.32
+                for j_i, j_an in jogos_bilhete:
+                    # Adiciona primeiro os favoritos e depois Over 1.5
+                    if len(itens_multipla) % 2 == 0:
+                        palpite = j_an["dica_vitoria"]
+                        odd = j_an["odd_fav"]
+                    else:
+                        palpite = j_an["dica_over15"]
+                        odd = j_an["odd_over15_val"]
 
-                        odd_multipla *= odd_m
-                        linhas_multipla.append(f"• [{j_info['data_hora']}] {j_info['casa']} vs {j_info['fora']} ➔ {palpite_m}")
+                    odd_multipla_acc *= odd
+                    itens_multipla.append(f"• [{j_i['data_hora']}] {j_i['casa']} vs {j_i['fora']} ➔ {palpite}")
 
-                    odd_multipla_final = round(odd_multipla, 2)
+                    if odd_multipla_acc >= 4.00 and len(itens_multipla) >= 3:
+                        break
 
+                odd_multipla_final = round(odd_multipla_acc, 2)
+
+                if odd_multipla_final >= 4.00:
                     st.success(
                         f"**🚀 MÚLTIPLA DO DIA — ODD TOTAL: @{odd_multipla_final}**\n\n" +
-                        "\n\n".join(linhas_multipla)
+                        "\n\n".join(itens_multipla)
                     )
+                else:
+                    st.warning("⚠️ Não há jogos de hoje/amanhã suficientes para acumular uma múltipla com odd mínima de 4.00 no momento.")
