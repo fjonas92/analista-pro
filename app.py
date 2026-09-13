@@ -26,19 +26,23 @@ st.markdown(
     .main-title { color: #FFFFFF; font-size: 1.6em; font-weight: 700; margin: 0; }
     .sub-title { color: #8E8E93; font-size: 0.9em; margin-top: 5px; }
     
-    /* Múltiplas e Duplas do Dia */
-    .combo-container { background-color: #16161A; border: 1px solid #26262C; border-radius: 12px; padding: 18px; margin-bottom: 25px; }
-    .combo-title { font-size: 1.15em; font-weight: bold; color: #FFCC00; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
-    .combo-card { background-color: #1A1A1E; border: 1px solid #3A3A42; border-radius: 10px; padding: 14px; height: 100%; }
-    .combo-header { font-weight: bold; font-size: 0.95em; color: #00FF66; margin-bottom: 10px; display: flex; justify-content: space-between; }
-    .combo-item { font-size: 0.85em; color: #DDDDDD; padding: 6px 0; border-bottom: 1px solid #26262C; }
+    /* Abas do Streamlit */
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; border-bottom: 1px solid #26262C; }
+    .stTabs [data-baseweb="tab"] { background-color: #16161A; border-radius: 8px 8px 0px 0px; padding: 12px 20px; color: #8E8E93; border: 1px solid #26262C; font-weight: 600; }
+    .stTabs [aria-selected="true"] { background-color: #0066FF !important; color: #FFFFFF !important; border: 1px solid #0066FF !important; }
+    
+    /* Múltiplas e Duplas */
+    .combo-card { background-color: #141417; border: 1px solid #26262C; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .combo-header { font-weight: bold; font-size: 1.1em; color: #00FF66; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #26262C; padding-bottom: 10px; }
+    .combo-item { font-size: 0.9em; color: #DDDDDD; padding: 10px 0; border-bottom: 1px solid #1A1A1E; }
     .combo-item:last-child { border-bottom: none; }
     
+    /* Card do Jogo */
     .match-card { background-color: #141417; border: 1px solid #26262C; border-radius: 12px; padding: 20px; margin-bottom: 25px; }
     .match-header { font-size: 1.3em; font-weight: bold; color: #FFFFFF; margin-bottom: 4px; }
     .league-header { font-size: 0.85em; color: #8E8E93; margin-bottom: 12px; }
     
-    /* Odds 1X2 Bet365 Header Bar */
+    /* Odds Bet365 1X2 */
     .match-odds-bar { display: flex; gap: 10px; background-color: #1A1A1E; border: 1px solid #2A2A30; padding: 8px 12px; border-radius: 6px; margin-bottom: 16px; font-size: 0.88em; }
     .odd-box { flex: 1; text-align: center; color: #CCCCCC; }
     .odd-box b { color: #00FF66; font-size: 1.05em; }
@@ -142,13 +146,10 @@ def analisar_oportunidades_partida(fixture):
     stat_home = api_get("teams/statistics", {"league": league_id, "season": season, "team": home_id})
     stat_away = api_get("teams/statistics", {"league": league_id, "season": season, "team": away_id})
 
-    # Estatísticas Detalhadas
-    g_home_scored = 1.85
-    g_home_conceded = 1.10
-    g_away_scored = 1.20
-    g_away_conceded = 1.75
-    win_rate_home = 55
-    win_rate_away_loss = 50
+    # Estatísticas
+    g_home_scored, g_home_conceded = 1.85, 1.10
+    g_away_scored, g_away_conceded = 1.20, 1.75
+    win_rate_home, win_rate_away_loss = 55, 50
 
     if stat_home and isinstance(stat_home, list) and len(stat_home) > 0:
         sh = stat_home[0] if isinstance(stat_home, list) else stat_home
@@ -186,7 +187,7 @@ def analisar_oportunidades_partida(fixture):
             if (h + a) > 2.5: prob_over25 += p
             if h > 0 and a > 0: prob_btts += p
 
-    # Busca Odds Bet365 Real / Match Odds
+    # Odds Bet365 Real / Match Odds
     odds_raw = api_get("odds", {"fixture": fixture_id, "bookmaker": "8"})
     odd_h, odd_d, odd_a = 0.0, 0.0, 0.0
     odd_o25, odd_btts = 0.0, 0.0
@@ -205,7 +206,7 @@ def analisar_oportunidades_partida(fixture):
                 for v in bet["values"]:
                     if v["value"] == "Yes": odd_btts = float(v["odd"])
 
-    if odd_h == 0.0: odd_h = max(1.25, round(1.0 / max(0.15, prob_home), 2))
+    if odd_h == 0.0: odd_h = max(1.30, round(1.0 / max(0.15, prob_home), 2))
     if odd_d == 0.0: odd_d = max(2.80, round(1.0 / max(0.15, prob_draw), 2))
     if odd_a == 0.0: odd_a = max(1.50, round(1.0 / max(0.15, prob_away), 2))
     if odd_o25 == 0.0: odd_o25 = max(1.40, round(1.0 / max(0.20, prob_over25), 2))
@@ -224,9 +225,11 @@ def analisar_oportunidades_partida(fixture):
     score_btts = min(98, max(45, int((prob_btts * 100 * 0.65) + (g_away_scored * 12))))
     score_corners = min(95, max(55, int((total_escanteios_esp * 7.5))))
 
+    match_name = f"{home_name} x {away_name}"
+
     oportunidades = [
         {
-            "match": f"{home_name} x {away_name}",
+            "match": match_name,
             "titulo": f"Vitória do {home_name} (casa)",
             "score": score_home,
             "val_odd": odd_h,
@@ -235,7 +238,7 @@ def analisar_oportunidades_partida(fixture):
             "explicacao": f"O {home_name} apresenta taxa de aproveitamento de {win_rate_home}% atuando como mandante, anotando média de {g_home_scored:.2f} gols por partida e sofrendo apenas {g_home_conceded:.2f}. Em contrapartida, o {away_name} apresenta vulnerabilidade defensiva fora de casa (cede {g_away_conceded:.2f} gols em média) com {win_rate_away_loss}% de derrotas nos jogos como visitante. O modelo de probabilidade Poisson indica {prob_home * 100:.1f}% de probabilidade para a vitória da casa."
         },
         {
-            "match": f"{home_name} x {away_name}",
+            "match": match_name,
             "titulo": "Mais de 2.5 gols",
             "score": score_gols,
             "val_odd": odd_o25,
@@ -244,16 +247,16 @@ def analisar_oportunidades_partida(fixture):
             "explicacao": f"O volume ofensivo do {home_name} em seus domínios ({g_home_scored:.2f} gols/jogo) combinado com a média defensiva do {away_name} como visitante ({g_away_conceded:.2f} sofridos) aponta para um jogo aberto. A expectativa quantitativa combinada é de {lambda_home + lambda_away:.2f} gols no confronto, cobrindo com margem estatística a linha de 2.5 gols."
         },
         {
-            "match": f"{home_name} x {away_name}",
+            "match": match_name,
             "titulo": "Ambas marcam — SIM",
             "score": score_btts,
             "val_odd": odd_btts,
             "badge": obter_badge_confianca(score_btts),
             "odd": f"Odd {odd_btts:.2f}",
-            "explicacao": f"O {away_name} mantém consistência de gols marcados fora de casa ({g_away_scored:.2f} por jogo), enquanto a defesa do {home_name} concede espaços regularly ({g_home_conceded:.2f} gols sofridos em casa). A matriz bivariada projeta {prob_btts * 100:.1f}% de chance de ambas as equipes balançarem as redes."
+            "explicacao": f"O {away_name} mantém consistência de gols marcados fora de casa ({g_away_scored:.2f} por jogo), enquanto a defesa do {home_name} concede espaços regularmente ({g_home_conceded:.2f} gols sofridos em casa). A matriz bivariada projeta {prob_btts * 100:.1f}% de chance de ambas as equipes balançarem as redes."
         },
         {
-            "match": f"{home_name} x {away_name}",
+            "match": match_name,
             "titulo": linha_cantos,
             "score": score_corners,
             "val_odd": odd_corners,
@@ -266,124 +269,68 @@ def analisar_oportunidades_partida(fixture):
     return oportunidades, {"odd_h": odd_h, "odd_d": odd_d, "odd_a": odd_a}
 
 
-# --- RENDERIZAÇÃO PRINCIPAL ---
-if btn_buscar or "raw_fixtures" in st.session_state:
+# --- EXECUÇÃO E CARGA DE DADOS ---
+if btn_buscar or "raw_fixtures" not in st.session_state:
     now_utc = datetime.now(timezone.utc)
+    data_str = None
+    if "Hoje" in opcao_filtro:
+        data_str = now_utc.strftime("%Y-%m-%d")
+    elif "Amanhã" in opcao_filtro:
+        data_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    if btn_buscar:
-        data_str = None
-        if "Hoje" in opcao_filtro:
-            data_str = now_utc.strftime("%Y-%m-%d")
-        elif "Amanhã" in opcao_filtro:
-            data_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
+    params_fixture = {"date": data_str} if data_str else {"next": "100"}
+    st.session_state["raw_fixtures"] = api_get("fixtures", params_fixture)
 
-        params_fixture = {"date": data_str} if data_str else {"next": "100"}
-        st.session_state["raw_fixtures"] = api_get("fixtures", params_fixture)
+raw_fixtures = st.session_state.get("raw_fixtures", [])
 
-    raw_fixtures = st.session_state.get("raw_fixtures", [])
+if not raw_fixtures:
+    st.warning("⚠️ Nenhum jogo encontrado para o período selecionado.")
+else:
+    now_utc = datetime.now(timezone.utc)
+    partidas_validas = []
 
-    if not raw_fixtures:
-        st.warning("Nenhum jogo encontrado para o período selecionado.")
+    for item in raw_fixtures:
+        fix = item["fixture"]
+        dt_fix = datetime.fromisoformat(fix["date"].replace("Z", "+00:00"))
+        if dt_fix > now_utc and fix["status"]["short"] in ["NS", "TBD"]:
+            partidas_validas.append((dt_fix, item))
+
+    partidas_validas.sort(key=lambda x: x[0])
+
+    if not partidas_validas:
+        st.info("⚠️ Não há partidas pendentes para o período selecionado.")
     else:
-        partidas_validas = []
-        todas_entradas = []
+        # ABAS PRINCIPAIS
+        tab_jogos, tab_combos = st.tabs(["⚽ JOGOS & ANÁLISES POR LIGA", "🚀 DUPLAS & MÚLTIPLA PRO (ODD 5.00+)"])
 
-        for item in raw_fixtures:
-            fix = item["fixture"]
-            dt_fix = datetime.fromisoformat(fix["date"].replace("Z", "+00:00"))
-            if dt_fix > now_utc and fix["status"]["short"] in ["NS", "TBD"]:
-                partidas_validas.append((dt_fix, item))
+        # PROCESSAMENTO GLOBAL (Independente do filtro de liga para alimentar as Múltiplas)
+        todas_entradas_globais = []
+        partidas_processadas = []
 
-        partidas_validas.sort(key=lambda x: x[0])
+        for dt_fix, item in partidas_validas:
+            opps, m_odds = analisar_oportunidades_partida(item)
+            todas_entradas_globais.extend(opps)
+            partidas_processadas.append((dt_fix, item, opps, m_odds))
 
-        if not partidas_validas:
-            st.info("⚠️ Não há partidas pendentes para o filtro selecionado.")
-        else:
-            # Extração de Ligas Únicas para o Filtro
+        # --- ABA 1: ANÁLISES INDIVIDUAIS COM FILTRO DE LIGAS ---
+        with tab_jogos:
             ligas_disponiveis = sorted(list(set([f"{item['league']['country']} - {item['league']['name']}" for _, item in partidas_validas])))
             ligas_opcoes = ["🌍 Todas as Ligas"] + ligas_disponiveis
 
             st.write("")
-            col_filtro1, col_filtro2 = st.columns([2, 1])
+            col_filtro1, _ = st.columns([2, 1])
             with col_filtro1:
-                liga_selecionada = st.selectbox("📌 Filtrar jogos por Liga/Campeonato:", options=ligas_opcoes)
+                liga_selecionada = st.selectbox("📌 Filtrar Jogos por Liga/Campeonato:", options=ligas_opcoes)
 
-            # Processamento de Dados das Partidas
-            partidas_filtradas = []
-            for dt_fix, item in partidas_validas:
+            partidas_exibir = []
+            for dt_fix, item, opps, m_odds in partidas_processadas:
                 nome_liga = f"{item['league']['country']} - {item['league']['name']}"
-                opps, m_odds = analisar_oportunidades_partida(item)
-                todas_entradas.extend(opps)
-                
                 if liga_selecionada == "🌍 Todas as Ligas" or liga_selecionada == nome_liga:
-                    partidas_filtradas.append((dt_fix, item, opps, m_odds))
+                    partidas_exibir.append((dt_fix, item, opps, m_odds))
 
-            # --- RENDERIZAÇÃO DAS DUPLAS E MÚLTIPLA DO DIA ---
-            # Ordena entradas pelo maior Score estatístico
-            todas_entradas.sort(key=lambda x: x["score"], reverse=True)
+            st.success(f"✅ {len(partidas_validas)} partidas analisadas no total! (Exibindo {len(partidas_exibir)} para a liga selecionada)")
 
-            if len(todas_entradas) >= 6:
-                d1_e1, d1_e2 = todas_entradas[0], todas_entradas[1]
-                d2_e1, d2_e2 = todas_entradas[2], todas_entradas[3]
-                m_e1, m_e2, m_e3 = todas_entradas[0], todas_entradas[2], todas_entradas[4]
-
-                odd_d1 = d1_e1["val_odd"] * d1_e2["val_odd"]
-                odd_d2 = d2_e1["val_odd"] * d2_e2["val_odd"]
-                odd_mult = m_e1["val_odd"] * m_e2["val_odd"] * m_e3["val_odd"]
-
-                st.markdown(
-                    """
-                <div class="combo-container">
-                    <div class="combo-title">🚀 COMBINAÇÕES E MÚLTIPLAS DO DIA (ALTA CONFIANÇA)</div>
-                """,
-                    unsafe_allow_html=True,
-                )
-
-                c1, c2, c3 = st.columns(3)
-
-                with c1:
-                    st.markdown(
-                        f"""
-                    <div class="combo-card">
-                        <div class="combo-header"><span>🟢 DUPLA DO DIA #1</span> <span>@ {odd_d1:.2f}</span></div>
-                        <div class="combo-item">📌 <b>{d1_e1['match']}</b><br>{d1_e1['titulo']} (@{d1_e1['val_odd']:.2f})</div>
-                        <div class="combo-item">📌 <b>{d1_e2['match']}</b><br>{d1_e2['titulo']} (@{d1_e2['val_odd']:.2f})</div>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
-                with c2:
-                    st.markdown(
-                        f"""
-                    <div class="combo-card">
-                        <div class="combo-header"><span>🟢 DUPLA DO DIA #2</span> <span>@ {odd_d2:.2f}</span></div>
-                        <div class="combo-item">📌 <b>{d2_e1['match']}</b><br>{d2_e1['titulo']} (@{d2_e1['val_odd']:.2f})</div>
-                        <div class="combo-item">📌 <b>{d2_e2['match']}</b><br>{d2_e2['titulo']} (@{d2_e2['val_odd']:.2f})</div>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
-                with c3:
-                    st.markdown(
-                        f"""
-                    <div class="combo-card">
-                        <div class="combo-header"><span style="color:#FFCC00;">🔥 MÚLTIPLA PRO (TRIPLA)</span> <span style="color:#FFCC00;">@ {odd_mult:.2f}</span></div>
-                        <div class="combo-item">📌 <b>{m_e1['match']}</b><br>{m_e1['titulo']} (@{m_e1['val_odd']:.2f})</div>
-                        <div class="combo-item">📌 <b>{m_e2['match']}</b><br>{m_e2['titulo']} (@{m_e2['val_odd']:.2f})</div>
-                        <div class="combo-item">📌 <b>{m_e3['match']}</b><br>{m_e3['titulo']} (@{m_e3['val_odd']:.2f})</div>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            st.success(f"✅ {len(partidas_validas)} partidas analisadas no total! (Exibindo {len(partidas_filtradas)} para a seleção atual)")
-
-            # Renderização dos Cards Individuais por Jogo
-            for dt_fix, item, opps, match_odds in partidas_filtradas[:50]:
+            for dt_fix, item, opps, match_odds in partidas_exibir[:50]:
                 league = item["league"]
                 teams = item["teams"]
                 dt_br = dt_fix - timedelta(hours=3)
@@ -405,7 +352,6 @@ if btn_buscar or "raw_fixtures" in st.session_state:
                     unsafe_allow_html=True,
                 )
 
-                # Oportunidades
                 for opp in opps:
                     st.markdown(
                         f"""
@@ -420,7 +366,6 @@ if btn_buscar or "raw_fixtures" in st.session_state:
                         unsafe_allow_html=True,
                     )
 
-                # Explicações
                 st.markdown("<div class='section-title' style='margin-top:20px;'>📝 Por que o modelo identificou estas entradas?</div>", unsafe_allow_html=True)
 
                 for opp in opps:
@@ -437,7 +382,6 @@ if btn_buscar or "raw_fixtures" in st.session_state:
                         unsafe_allow_html=True,
                     )
 
-                # Disclaimer +18 Anos
                 st.markdown(
                     """
                     <div class="disclaimer-box">
@@ -447,3 +391,117 @@ if btn_buscar or "raw_fixtures" in st.session_state:
                 """,
                     unsafe_allow_html=True,
                 )
+
+        # --- ABA 2: DUPLAS E MÚLTIPLA PRO (ODD MINIMA 5.00) ---
+        with tab_combos:
+            st.write("")
+            st.subheader("🔥 Bilhetes Prontos e Combinadas do Dia")
+            st.caption("Gerado com os bilhetes de maior Score de Confiança estatística da grade do dia.")
+
+            # Filtrar e ordenar entradas de jogos distintos
+            entradas_ordenadas = sorted(todas_entradas_globais, key=lambda x: x["score"], reverse=True)
+
+            # Evita duplicar jogos no mesmo bilhete
+            jogos_usados = set()
+            entradas_unicas = []
+            for e in entradas_ordenadas:
+                if e["match"] not in jogos_usados:
+                    entradas_unicas.append(e)
+                    jogos_usados.add(e["match"])
+
+            if len(entradas_unicas) >= 4:
+                col_d1, col_d2 = st.columns(2)
+
+                # Dupla 1
+                d1_e1, d1_e2 = entradas_unicas[0], entradas_unicas[1]
+                odd_d1 = d1_e1["val_odd"] * d1_e2["val_odd"]
+
+                with col_d1:
+                    st.markdown(
+                        f"""
+                    <div class="combo-card">
+                        <div class="combo-header">
+                            <span>🟢 DUPLA DO DIA #1</span>
+                            <span style="color:#00FF66; font-size:1.2em;">ODD TOTAL: @ {odd_d1:.2f}</span>
+                        </div>
+                        <div class="combo-item">
+                            📌 <b>{d1_e1['match']}</b><br>
+                            Entrada: <b>{d1_e1['titulo']}</b> (@{d1_e1['val_odd']:.2f}) {d1_e1['badge']}
+                        </div>
+                        <div class="combo-item">
+                            📌 <b>{d1_e2['match']}</b><br>
+                            Entrada: <b>{d1_e2['titulo']}</b> (@{d1_e2['val_odd']:.2f}) {d1_e2['badge']}
+                        </div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                # Dupla 2
+                d2_e1, d2_e2 = entradas_unicas[2], entradas_unicas[3]
+                odd_d2 = d2_e1["val_odd"] * d2_e2["val_odd"]
+
+                with col_d2:
+                    st.markdown(
+                        f"""
+                    <div class="combo-card">
+                        <div class="combo-header">
+                            <span>🟢 DUPLA DO DIA #2</span>
+                            <span style="color:#00FF66; font-size:1.2em;">ODD TOTAL: @ {odd_d2:.2f}</span>
+                        </div>
+                        <div class="combo-item">
+                            📌 <b>{d2_e1['match']}</b><br>
+                            Entrada: <b>{d2_e1['titulo']}</b> (@{d2_e1['val_odd']:.2f}) {d2_e1['badge']}
+                        </div>
+                        <div class="combo-item">
+                            📌 <b>{d2_e2['match']}</b><br>
+                            Entrada: <b>{d2_e2['titulo']}</b> (@{d2_e2['val_odd']:.2f}) {d2_e2['badge']}
+                        </div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                # --- MONTAGEM DA MÚLTIPLA COM ODD MÍNIMA DE 5.00 ---
+                multipla_selecoes = []
+                odd_acumulada = 1.0
+
+                for item in entradas_unicas:
+                    multipla_selecoes.append(item)
+                    odd_acumulada *= item["val_odd"]
+                    if odd_acumulada >= 5.00 and len(multipla_selecoes) >= 3:
+                        break
+
+                st.write("")
+                st.markdown(
+                    f"""
+                <div class="combo-card" style="border: 1px solid #FFCC00;">
+                    <div class="combo-header">
+                        <span style="color:#FFCC00; font-size:1.2em;">🔥 MÚLTIPLA PRO DO DIA (ALTA COTAÇÃO)</span>
+                        <span style="color:#FFCC00; font-size:1.4em;">ODD TOTAL: @ {odd_acumulada:.2f}</span>
+                    </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
+                for item in multipla_selecoes:
+                    st.markdown(
+                        f"""
+                    <div class="combo-item">
+                        📌 <b>{item['match']}</b> — Seleção: <b>{item['titulo']}</b> (@{item['val_odd']:.2f}) {item['badge']}
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                st.markdown(
+                    """
+                    <div class="disclaimer-box">
+                        🔞 <b>+18 | APOSTE COM RESPONSABILIDADE:</b> As combinadas aumentam a cotação final, mas elevam o risco. Faça a gestão de banca adequada.
+                    </div>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("⚠️ É necessário carregar mais jogos para formar as combinações do dia.")
