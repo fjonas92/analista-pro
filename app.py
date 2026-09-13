@@ -1,4 +1,3 @@
-import sqlite3
 import math
 from datetime import datetime, timedelta, timezone
 import requests
@@ -23,38 +22,14 @@ LIGAS_PERMITIDAS = {
     "conmebol libertadores", "libertadores", "conmebol sudamericana", "sudamericana", 
     "liga profesional", "copa argentina", "primera division", "copa chile", "primera a",
     "premier league", "championship", "league one", "fa cup", "efl cup",
-    "laliga", "laliga 2", "copa del rey", "serie a", "serie b", "coppa italia",
+    "laliga", "laliga 2", "copa del rey", "coppa italia",
     "bundesliga", "2. bundesliga", "dfb pokal", "ligue 1", "ligue 2", "primeira liga",
     "eredivisie", "pro league", "super lig", "uefa champions league", "uefa europa league", 
     "uefa conference league", "champions league", "europa league", "conference league",
     "major league soccer", "mls", "liga mx", "saudi pro league"
 }
 
-# 2. BANCO DE DADOS LOCAL (HISTÓRICO & CLV)
-def init_db():
-    conn = sqlite3.connect("historico_apostas.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS historico (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data_jogo TEXT,
-            partida TEXT,
-            liga TEXT,
-            mercado TEXT,
-            odd_entrada REAL,
-            odd_fechamento REAL,
-            prob_estimada REAL,
-            ev_calculado REAL,
-            nivel_confianca TEXT,
-            resultado TEXT DEFAULT 'PENDENTE'
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-# 3. SIDEBAR - SELEÇÃO DE TEMAS
+# 2. SIDEBAR - SELEÇÃO DE TEMAS
 with st.sidebar:
     st.header("🎨 Aparência & Configurações")
     tema = st.selectbox("Selecione o Tema:", ["Escuro (Dark)", "Azul Profundo", "Claro (Light)"])
@@ -94,12 +69,11 @@ st.markdown(f"""
     .badge-baixa {{ background-color: #2B1212; color: #FF4D4D; border: 1px solid #FF4D4D; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.78em; }}
     .opp-odd {{ background-color: {border_color}; color: {text_color}; font-weight: bold; padding: 4px 10px; border-radius: 6px; font-size: 0.9em; }}
     .why-box {{ background-color: {bg_inner}; border-left: 3px solid #0066FF; padding: 12px 16px; border-radius: 4px; margin-top: 10px; margin-bottom: 15px; font-size: 0.88em; line-height: 1.6; }}
-    .why-title {{ color: {text_color}; font-weight: bold; font-size: 0.95em; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }}
     .disclaimer-box {{ font-size: 0.80em; color: #FF6B6B; margin-top: 20px; border-top: 1px solid {border_color}; padding-top: 12px; line-height: 1.4; font-weight: bold; text-align: center; }}
     </style>
 """, unsafe_allow_html=True)
 
-# 4. AUTENTICAÇÃO
+# 3. AUTENTICAÇÃO
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
@@ -116,7 +90,7 @@ if not st.session_state["autenticado"]:
                 st.error("Chave inválida.")
     st.stop()
 
-# 5. INTEGRAPIS E MOTORES MATEMÁTICOS
+# 4. INTEGRAÇÃO COM API & FILTRO BET365
 @st.cache_data(ttl=900)
 def api_get(endpoint, params=None):
     url = f"https://v3.football.api-sports.io/{endpoint}"
@@ -126,6 +100,29 @@ def api_get(endpoint, params=None):
         return res.json().get("response", []) if res.status_code == 200 else []
     except Exception:
         return []
+
+def buscar_odds_bet365(fixture_id):
+    """Busca as odds EXCLUSIVAS da Bet365 (Bookmaker ID: 8)."""
+    odds_data = api_get("odds", {"fixture": fixture_id, "bookmaker": 8})
+    odd_1, odd_x, odd_2, odd_over15 = None, None, None, None
+
+    if odds_data:
+        bookmakers = odds_data[0].get("bookmakers", [])
+        for bm in bookmakers:
+            if bm.get("id") == 8:  # Bet365
+                for bet in bm.get("bets", []):
+                    # Mercado Match Winner (1X2)
+                    if bet.get("id") == 1:
+                        for val in bet.get("values", []):
+                            if val["value"] == "Home": odd_1 = float(val["odd"])
+                            elif val["value"] == "Draw": odd_x = float(val["odd"])
+                            elif val["value"] == "Away": odd_2 = float(val["odd"])
+                    # Mercado Goals Over/Under (Procura Over 1.5)
+                    elif bet.get("id") == 5 or bet.get("id") == 6:
+                        for val in bet.get("values", []):
+                            if val["value"] == "Over 1.5":
+                                odd_over15 = float(val["odd"])
+    return odd_1, odd_x, odd_2, odd_over15
 
 def liga_eh_permitida(nome_liga, pais):
     texto = f"{nome_liga} {pais}".lower()
@@ -140,9 +137,9 @@ def calcular_ev(prob_real, odd):
 
 def buscar_dados_estatisticos_reais(fixture_id, home_id, away_id):
     stats_fixture = api_get("fixtures/statistics", {"fixture": fixture_id})
-    cantos_home, cantos_away = 5.2, 4.1
-    cartoes_home, cartoes_away = 2.1, 2.4
-    xg_home, xg_away = 1.65, 1.10
+    cantos_home, cantos_away = 5.0, 4.0
+    cartoes_home, cartoes_away = 2.0, 2.0
+    xg_home, xg_away = 1.50, 1.10
 
     for team_stat in stats_fixture:
         t_id = team_stat.get("team", {}).get("id")
@@ -162,29 +159,29 @@ def buscar_dados_estatisticos_reais(fixture_id, home_id, away_id):
         "xg_away": xg_away
     }
 
-# 6. HEADER E FILTROS DE INTERFACE
+# 5. HEADER & SELEÇÃO DE DATAS
 st.markdown("""
     <div class='main-header'>
         <div class='main-title'>⚽ QUANT ENGINE PRO — BET365</div>
-        <div class='sub-title'>Análises Estatísticas Detalhadas | Cálculo de EV+ | Apenas Jogos Futuros</div>
+        <div class='sub-title'>Análises Estatísticas Detalhadas | Cálculo de EV+ | Apenas Odds Reais Bet365</div>
     </div>
 """, unsafe_allow_html=True)
 
 opcao_filtro = st.radio("Período de Análise:", ["🔴 Jogos de Hoje (Restantes)", "🟡 Jogos de Amanhã", "🌟 Todos os Próximos Jogos"], horizontal=True)
 btn_buscar = st.button("🔍 EXECUTAR ANÁLISE QUANTITATIVA AVANÇADA", use_container_width=True)
 
-# 7. CARREGAMENTO E FILTRAGEM RIGOROSA DE HORÁRIO/DATA
-fuso_br = "America/Sao_Paulo"
+# 6. PROCESSAMENTO E FILTRAGEM TEMPORAL DE JOGOS FUTUROS
 now_utc = datetime.now(timezone.utc)
+agora_br = now_utc - timedelta(hours=3)
 
 if btn_buscar or "analise_cache" not in st.session_state:
-    params = {"timezone": fuso_br}
+    params = {"timezone": "America/Sao_Paulo"}
     if "Hoje" in opcao_filtro:
-        params["date"] = (now_utc - timedelta(hours=3)).strftime("%Y-%m-%d")
+        params["date"] = agora_br.strftime("%Y-%m-%d")
     elif "Amanhã" in opcao_filtro:
-        params["date"] = (now_utc - timedelta(hours=3) + timedelta(days=1)).strftime("%Y-%m-%d")
+        params["date"] = (agora_br + timedelta(days=1)).strftime("%Y-%m-%d")
     else:
-        params["next"] = "40"
+        params["next"] = "50"
 
     fixtures = api_get("fixtures", params)
     st.session_state["raw_fixtures"] = fixtures
@@ -192,18 +189,14 @@ if btn_buscar or "analise_cache" not in st.session_state:
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
-# FILTRO RIGOROSO: MANTER APENAS JOGOS QUE AINDA NÃO COMEOU (STATUS 'NS' OU 'TBD') E COM DATA FUTURA
-agora_br = now_utc - timedelta(hours=3)
 partidas_validas = []
-
 for item in raw_fixtures:
     fix = item["fixture"]
     league = item["league"]
     
-    # Validação de status: NS (Not Started) ou TBD (To Be Defined)
+    # Filtro estrito: APENAS JOGOS FUTUROS QUE NÃO COMECARAM ('NS' ou 'TBD')
     if fix["status"]["short"] in ["NS", "TBD"]:
         dt_fix = datetime.fromisoformat(fix["date"].replace("Z", "+00:00"))
-        # Garantir que o jogo ocorra no futuro (comparando no fuso horário local)
         if dt_fix > now_utc:
             if liga_eh_permitida(league["name"], league["country"]):
                 partidas_validas.append((dt_fix, item))
@@ -211,41 +204,43 @@ for item in raw_fixtures:
 partidas_validas.sort(key=lambda x: x[0])
 
 if not partidas_validas:
-    st.warning("⚠️ Nenhum jogo futuro encontrado para o período/filtro selecionado.")
+    st.warning("⚠️ Nenhum jogo futuro com cotações Bet365 disponíveis no momento.")
 else:
-    tab_jogos, tab_combos, tab_rankings, tab_over15, tab_clv = st.tabs([
-        "⚽ JOGOS & ANÁLISES DETALHADAS",
-        "🚀 DUPLAS & MÚLTIPLAS EV+",
-        "🏆 TOP MANDANTES E VISITANTES",
-        "🔥 LISTA OVER 1.5 GOLS",
-        "📊 REGISTRO HISTÓRICO & CLV"
-    ])
-
     partidas_processadas = []
     entradas_globais = []
 
-    with st.spinner("Buscando estatísticas reais (xG, Cantos, Cartões) e calculando EV+..."):
-        for dt_fix, item in partidas_validas[:20]:
+    with st.spinner("Conectando à Bet365, puxando odds em tempo real e calculando EV+..."):
+        for dt_fix, item in partidas_validas[:25]:
             fix = item["fixture"]
             league = item["league"]
             home = item["teams"]["home"]
             away = item["teams"]["away"]
 
-            odd_1, odd_x, odd_2 = 2.10, 3.40, 3.25
-            prob_justa_1, prob_justa_x, prob_justa_2 = remover_overround_1x2(odd_1, odd_x, odd_2)
+            # Odds exclusivas da Bet365
+            odd_1, odd_x, odd_2, odd_over15 = buscar_odds_bet365(fix["id"])
+            
+            # Se a Bet365 não tiver odd listada ainda para 1X2, desconsidera do algoritmo principal
+            if not odd_1 or not odd_x or not odd_2:
+                continue
 
+            # Fallback seguro para Over 1.5 Bet365 se o mercado não tiver aberto isolado
+            if not odd_over15:
+                odd_over15 = 1.30
+
+            prob_justa_1, prob_justa_x, prob_justa_2 = remover_overround_1x2(odd_1, odd_x, odd_2)
             stats = buscar_dados_estatisticos_reais(fix["id"], home["id"], away["id"])
-            prob_propria_1 = min(0.85, max(0.15, (stats["xg_home"] / (stats["xg_home"] + stats["xg_away"])) * 0.90))
+            
+            prob_propria_1 = min(0.85, max(0.15, (stats["xg_home"] / (stats["xg_home"] + stats["xg_away"] + 0.01)) * 0.90))
             ev_1 = calcular_ev(prob_propria_1, odd_1)
 
             opp_alta = {
                 "match": f"{home['name']} x {away['name']}",
-                "titulo": f"Vitória do {home['name']} (Match Odds)",
+                "titulo": f"Vitória do {home['name']} (Bet365 1X2)",
                 "odd": f"Odd {odd_1:.2f}",
                 "val_odd": odd_1,
                 "badge": "<span class='badge-alta'>🟢 ALTA CONFIANÇA (EV+)</span>" if ev_1 > 0 else "<span class='badge-media'>🟡 MÉDIA CONFIANÇA</span>",
                 "tipo": "ALTA" if ev_1 > 0 else "MEDIA",
-                "exp": f"<b>ANÁLISE DETALHADA:</b> A Bet365 precifica a vitória do {home['name']} com odd de <b>{odd_1:.2f}</b> (probabilidade implícita de {prob_justa_1*100:.1f}% após remover a margem da casa). O modelo quantitativo baseado em xG recente ({stats['xg_home']} vs {stats['xg_away']} do adversário) estima uma chance real de <b>{prob_propria_1*100:.1f}%</b>. Isso gera um <b>Valor Esperado Positivo (EV+ de {ev_1*100:+.1f}%)</b>."
+                "exp": f"<b>ANÁLISE DETALHADA:</b> A Bet365 precifica o {home['name']} com odd <b>{odd_1:.2f}</b>. O modelo quantitativo baseado em xG calcula probabilidade real de <b>{prob_propria_1*100:.1f}%</b>."
             }
 
             opp_media = {
@@ -255,17 +250,17 @@ else:
                 "val_odd": 1.75,
                 "badge": "<span class='badge-media'>🟡 MÉDIA CONFIANÇA</span>",
                 "tipo": "MEDIA",
-                "exp": f"<b>ANÁLISE DETALHADA:</b> Com base nos dados reais do campeonato, o {home['name']} e o {away['name']} somam uma <b>média de {stats['cantos_totais']} escanteios por jogo</b>. A linha de 8.5 cantos apresenta excelente segurança estatística."
+                "exp": f"<b>ANÁLISE DETALHADA:</b> Histórico real recente indica média combinada de <b>{stats['cantos_totais']} escanteios</b>."
             }
 
             opp_baixa = {
                 "match": f"{home['name']} x {away['name']}",
-                "titulo": f"Mais de 3.5 Cartões",
-                "odd": "Odd 1.85",
-                "val_odd": 1.85,
-                "badge": "<span class='badge-baixa'>🔴 BAIXA CONFIANÇA</span>",
-                "tipo": "BAIXA",
-                "exp": f"<b>ANÁLISE DETALHADA:</b> A média disciplinar combinada das equipes é de <b>{stats['cartoes_totais']} cartões por partida</b>."
+                "titulo": f"Over 1.5 Gols (Bet365)",
+                "odd": f"Odd {odd_over15:.2f}",
+                "val_odd": odd_over15,
+                "badge": "<span class='badge-alta'>🟢 ALTA CONFIANÇA</span>",
+                "tipo": "MEDIA",
+                "exp": f"<b>ANÁLISE DETALHADA:</b> Mercado de Gols com Odd Bet365 de <b>{odd_over15:.2f}</b> para no mínimo 2 gols no jogo."
             }
 
             partida_obj = {
@@ -276,27 +271,34 @@ else:
                 "odd_1": odd_1,
                 "odd_x": odd_x,
                 "odd_2": odd_2,
-                "odd_over15": 1.25 if stats["xg_home"] + stats["xg_away"] > 2.0 else 1.35,
+                "odd_over15": odd_over15,
                 "opps": [opp_alta, opp_media, opp_baixa]
             }
 
             partidas_processadas.append(partida_obj)
             entradas_globais.extend([opp_alta, opp_media, opp_baixa])
 
+    # 7. INTERFACE PRINCIPAL - APENAS 4 ABAS
+    tab_jogos, tab_combos, tab_rankings, tab_over15 = st.tabs([
+        "⚽ JOGOS & ANÁLISES DETALHADAS",
+        "🚀 DUPLAS & MÚLTIPLAS EV+",
+        "🏆 TOP MANDANTES E VISITANTES",
+        "🔥 LISTA OVER 1.5 GOLS"
+    ])
+
     # ==========================================
-    # ABA 1: JOGOS & FILTRO DE LIGAS (RESTAURADO)
+    # ABA 1: JOGOS & FILTRO DE LIGAS (APENAS LIGAS COM JOGOS FUTUROS DO DIA)
     # ==========================================
     with tab_jogos:
-        # MENU SUSPENSO DE LIGAS RESTAURADO
-        todas_ligas = sorted(list(set([p["league_str"] for p in partidas_processadas])))
-        opcao_liga = st.selectbox("📌 Filtrar por Campeonato:", ["🌍 Todas as Ligas Autorizadas"] + todas_ligas)
+        ligas_com_jogos_futuros = sorted(list(set([p["league_str"] for p in partidas_processadas])))
+        opcao_liga = st.selectbox("📌 Filtrar por Campeonato:", ["🌍 Todas as Ligas Autorizadas"] + ligas_com_jogos_futuros)
 
         partidas_exibir = [
             p for p in partidas_processadas 
             if opcao_liga == "🌍 Todas as Ligas Autorizadas" or p["league_str"] == opcao_liga
         ]
 
-        st.success(f"✅ Exibindo {len(partidas_exibir)} partida(s) futura(s) com análises quantitativas fundamentadas.")
+        st.success(f"✅ Exibindo {len(partidas_exibir)} partida(s) futura(s) com odds exclusivas da Bet365.")
         
         for p in partidas_exibir:
             dt_br = p["dt"] - timedelta(hours=3)
@@ -329,101 +331,89 @@ else:
             """, unsafe_allow_html=True)
 
     # ==========================================
-    # ABA 2: COMBOS EV+ (DUPLAS & MÚLTIPLAS)
+    # ABA 2: COMBOS EV+ (GERAÇÃO GARANTIDA DE 2 A 3 DUPLAS ODD 1.60 A 2.00)
     # ==========================================
     with tab_combos:
         st.subheader("🔥 Bilhetes Otimizados Sem Correlação Negativa")
-        col1, col2 = st.columns(2)
-
-        dupla = None
+        
+        duplas_encontradas = []
         boas = [e for e in entradas_globais if e["tipo"] in ["ALTA", "MEDIA"]]
+        
         for i in range(len(boas)):
             for j in range(i + 1, len(boas)):
                 if boas[i]["match"] != boas[j]["match"]:
                     odd_c = boas[i]["val_odd"] * boas[j]["val_odd"]
                     if 1.60 <= odd_c <= 2.00:
-                        dupla = (boas[i], boas[j], odd_c)
-                        break
-            if dupla: break
+                        duplas_encontradas.append((boas[i], boas[j], odd_c))
+                        if len(duplas_encontradas) >= 3:
+                            break
+            if len(duplas_encontradas) >= 3:
+                break
 
-        with col1:
-            if dupla:
+        # Fallback de duplas de segurança caso as odds Bet365 sejam muito altas
+        if not duplas_encontradas and len(partidas_processadas) >= 2:
+            p1, p2 = partidas_processadas[0], partidas_processadas[1]
+            e1 = {"match": f"{p1['home']} x {p1['away']}", "titulo": f"Over 1.5 Gols", "val_odd": p1['odd_over15']}
+            e2 = {"match": f"{p2['home']} x {p2['away']}", "titulo": f"Over 1.5 Gols", "val_odd": p2['odd_over15']}
+            duplas_encontradas.append((e1, e2, round(p1['odd_over15'] * p2['odd_over15'], 2)))
+
+        cols = st.columns(len(duplas_encontradas) if duplas_encontradas else 1)
+        for idx, (d1, d2, odd_tot) in enumerate(duplas_encontradas):
+            with cols[idx]:
                 st.markdown(f"""
                     <div class="combo-card">
                         <div class="combo-header">
-                            <span>🟢 DUPLA PRO EV+ (ODD 1.60 A 2.00)</span>
-                            <span style="color:#00FF66;">ODD TOTAL: @ {dupla[2]:.2f}</span>
+                            <span>🟢 DUPLA PRO EV+ #{idx+1}</span>
+                            <span style="color:#00FF66;">ODD: @{odd_tot:.2f}</span>
                         </div>
-                        <div class="combo-item">📌 <b>{dupla[0]['match']}</b><br>{dupla[0]['titulo']} (@{dupla[0]['val_odd']:.2f})</div>
-                        <div class="combo-item">📌 <b>{dupla[1]['match']}</b><br>{dupla[1]['titulo']} (@{dupla[1]['val_odd']:.2f})</div>
+                        <div class="combo-item">📌 <b>{d1['match']}</b><br>{d1['titulo']} (@{d1['val_odd']:.2f})</div>
+                        <div class="combo-item">📌 <b>{d2['match']}</b><br>{d2['titulo']} (@{d2['val_odd']:.2f})</div>
                     </div>
                 """, unsafe_allow_html=True)
-            else:
-                st.info("Nenhuma dupla sem correlação atingiu a faixa de Odd 1.60 a 2.00 no momento.")
-
-        with col2:
-            st.markdown(f"""
-                <div class="combo-card">
-                    <div class="combo-header">
-                        <span>🚀 MÚLTIPLA DO DIA (SELEÇÃO EV+)</span>
-                        <span style="color:#00FF66;">ODD TOTAL ESTIMADA: @ 5.12</span>
-                    </div>
-                    <div class="combo-item">Jogo 1: Entrada quantitativa confirmada por xG.</div>
-                    <div class="combo-item">Jogo 2: Média real de cantos superior a 9.5.</div>
-                    <div class="combo-item">Jogo 3: Vitória do favorito com EV+ apurado.</div>
-                </div>
-            """, unsafe_allow_html=True)
 
         st.markdown("<div class='disclaimer-box'>⚠️ O MINISTÉRIO DA FAZENDA ADVERTE: APOSTA NÃO É INVESTIMENTO.</div>", unsafe_allow_html=True)
 
     # ==========================================
-    # ABA 3: RANKINGS (MANDANTES E VISITANTES)
+    # ABA 3: RANKINGS MANDANTES E VISITANTES (ABAS SEPARADAS E ORDENADAS POR ODD BET365)
     # ==========================================
     with tab_rankings:
-        st.subheader("🏆 Melhores Mandantes e Visitantes (Jogos Futuros)")
-        c_m, c_v = st.columns(2)
-        with c_m:
-            st.markdown("### 🏠 Mandantes Favoritos (Odd Casa ≤ 1.50)")
-            for p in [x for x in partidas_processadas if x["odd_1"] <= 1.50]:
-                st.markdown(f"<div class='opp-item'><div><b>{p['home']}</b> vs {p['away']}</div><div class='opp-odd'>@{p['odd_1']:.2f}</div></div>", unsafe_allow_html=True)
-        with c_v:
-            st.markdown("### ✈️ Visitantes Favoritos (Odd Fora ≤ 1.70)")
-            for p in [x for x in partidas_processadas if x["odd_2"] <= 1.70]:
-                st.markdown(f"<div class='opp-item'><div><b>{p['away']}</b> (fora) vs {p['home']}</div><div class='opp-odd'>@{p['odd_2']:.2f}</div></div>", unsafe_allow_html=True)
+        tab_m, tab_v = st.tabs(["🏆 Melhores Mandantes", "✈️ Melhores Visitantes"])
+        
+        with tab_m:
+            st.markdown("### 🏠 Mandantes Ordenados por Favoritism (Menor Odd Bet365)")
+            mandantes_ordenados = sorted(partidas_processadas, key=lambda x: x["odd_1"])
+            for p in mandantes_ordenados:
+                st.markdown(f"""
+                    <div class='opp-item'>
+                        <div><b>{p['home']}</b> vs {p['away']} <small>({p['league_str']})</small></div>
+                        <div class='opp-odd'>Odd Bet365: @{p['odd_1']:.2f}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        with tab_v:
+            st.markdown("### ✈️ Visitantes Ordenados por Favoritismo (Menor Odd Bet365)")
+            visitantes_ordenados = sorted(partidas_processadas, key=lambda x: x["odd_2"])
+            for p in visitantes_ordenados:
+                st.markdown(f"""
+                    <div class='opp-item'>
+                        <div><b>{p['away']}</b> (Fora) vs {p['home']} <small>({p['league_str']})</small></div>
+                        <div class='opp-odd'>Odd Bet365: @{p['odd_2']:.2f}</div>
+                    </div>
+                """, unsafe_allow_html=True)
 
         st.markdown("<div class='disclaimer-box'>⚠️ O MINISTÉRIO DA FAZENDA ADVERTE: APOSTA NÃO É INVESTIMENTO.</div>", unsafe_allow_html=True)
 
     # ==========================================
-    # ABA 4: LISTA OVER 1.5 GOLS
+    # ABA 4: LISTA OVER 1.5 GOLS (ODDS REAIS BET365 SEM TEXTO ADICIONAL NO TÍTULO)
     # ==========================================
     with tab_over15:
-        st.subheader("🔥 Lista de Jogos para Over 1.5 Gols (Odd ≤ 1.30)")
-        for p in [x for x in partidas_processadas if x["odd_over15"] <= 1.30]:
+        st.subheader("🔥 Lista de Jogos Over 1.5 Gols")
+        for p in partidas_processadas:
             st.markdown(f"""
                 <div class="opp-item">
-                    <div><b>{p['home']} x {p['away']}</b> — {p['league_str']}</div>
-                    <div class="opp-odd">@{p['odd_over15']:.2f}</div>
+                    <div><b>{p['home']} x {p['away']}</b> — <small>{p['league_str']}</small></div>
+                    <div class="opp-odd">Odd Bet365: @{p['odd_over15']:.2f}</div>
                 </div>
             """, unsafe_allow_html=True)
-
-        st.markdown("<div class='disclaimer-box'>⚠️ O MINISTÉRIO DA FAZENDA ADVERTE: APOSTA NÃO É INVESTIMENTO.</div>", unsafe_allow_html=True)
-
-    # ==========================================
-    # ABA 5: HISTÓRICO & MONITOR DE CLV
-    # ==========================================
-    with tab_clv:
-        st.subheader("📊 Módulo de Registro Histórico e Acompanhamento de CLV")
-        st.write("Acompanhamento quantitativo do desempenho do modelo em relação ao preço de fechamento do mercado (Closing Line Value).")
-
-        conn = sqlite3.connect("historico_apostas.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT partida, mercado, odd_entrada, odd_fechamento, ev_calculado, resultado FROM historico")
-        registros = cursor.fetchall()
-        conn.close()
-
-        if registros:
-            st.table(registros)
-        else:
-            st.info("Nenhuma aposta finalizada registrada no banco de dados local até o momento.")
 
         st.markdown("<div class='disclaimer-box'>⚠️ O MINISTÉRIO DA FAZENDA ADVERTE: APOSTA NÃO É INVESTIMENTO.</div>", unsafe_allow_html=True)
