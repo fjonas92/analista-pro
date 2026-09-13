@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Oculta menus do Streamlit, cabeçalhos, rodapé e estiliza a interface
+# Estilização CSS e oculta elementos padrão do Streamlit
 st.markdown(
     """
     <style>
@@ -86,7 +86,7 @@ THE_ODDS_API_KEY = st.secrets.get(
     "THE_ODDS_API_KEY", "e484810f517d8e428f3cbf3e89e2973b"
 )
 
-# SENHAS/LICENÇAS VÁLIDAS
+# Chaves de acesso válidas
 LICENCAS_VALIDAS = [
     "PRO-FUTEBOL-2026",
     "VIP-ANALISTA-888",
@@ -94,7 +94,7 @@ LICENCAS_VALIDAS = [
     "ADMIN-MASTER-99",
 ]
 
-# Ligas de futebol populares
+# Ligas monitoradas
 LIGAS_FUTEBOL = [
     "soccer_brazil_campeonato",
     "soccer_epl",
@@ -108,11 +108,10 @@ LIGAS_FUTEBOL = [
     "soccer_usa_mls",
 ]
 
-# Inicializa estado de login
+# Gerenciamento de Login
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
-# --- TELA DE LOGIN ---
 if not st.session_state["autenticado"]:
     st.markdown(
         "<div class='main-header'><h1>🔒 ANALISTA PRO — ÁREA EXCLUSIVA</h1></div>",
@@ -136,79 +135,99 @@ if not st.session_state["autenticado"]:
                 st.error("❌ Chave de licença inválida ou expirada.")
 
         st.markdown("---")
-        st.info("💡 Não tem uma chave de acesso? Adquira seu acesso VIP.")
+        st.info("💡 Adquira sua chave de acesso VIP para visualizar as análises.")
     st.stop()
 
-# --- ÁREA PRINCIPAL DO SISTEMA ---
+# --- INTERFACE PRINCIPAL ---
 st.markdown(
     "<div class='main-header'><h1>⚽ ANALISTA PRO</h1></div>",
     unsafe_allow_html=True,
 )
 
-btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES (TODOS OS PRÓXIMOS JOGOS)", use_container_width=True)
+btn_buscar = st.button("🔍 BUSCAR JOGOS FUTUROS (HOJE, AMANHÃ E PRÓXIMOS DIAS)", use_container_width=True)
 
 
-def carregar_jogos_das_ligas():
-    jogos_agrupados = []
-    
-    # 1. Tenta carregar os próximos jogos das principais ligas
+def buscar_jogos_futuros():
+    jogos_brutos = []
+    ids_processados = set()
+
+    # Busca nas ligas específicas
     for liga_key in LIGAS_FUTEBOL:
         url = f"https://api.the-odds-api.com/v4/sports/{liga_key}/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
         try:
             res = requests.get(url, timeout=5)
             if res.status_code == 200:
-                data = res.json()
-                if isinstance(data, list):
-                    jogos_agrupados.extend(data)
+                dados = res.json()
+                if isinstance(dados, list):
+                    for jogo in dados:
+                        jogo_id = jogo.get("id")
+                        if jogo_id not in ids_processados:
+                            ids_processados.add(jogo_id)
+                            jogos_brutos.append(jogo)
         except Exception:
             continue
 
-    # 2. Se nenhuma liga específica retornar nada, usa a busca global de próximos eventos
-    if not jogos_agrupados:
+    # Caso as ligas específicas fiquem sem retorno, usa o endpoint genérico 'upcoming'
+    if not jogos_brutos:
         url_fallback = f"https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
         try:
             res = requests.get(url_fallback, timeout=8)
             if res.status_code == 200:
-                jogos_agrupados = res.json()
+                dados = res.json()
+                if isinstance(dados, list):
+                    for jogo in dados:
+                        if "soccer" in jogo.get("sport_key", ""):
+                            jogos_brutos.append(jogo)
         except Exception:
             pass
 
-    return jogos_agrupados
+    return jogos_brutos
 
 
 if btn_buscar:
-    with st.spinner("Buscando partidas de amanhã e dos próximos dias nas ligas globais..."):
-        jogos_raw = carregar_jogos_das_ligas()
+    with st.spinner("Buscando partidas programadas que ainda NÃO começaram..."):
+        jogos_raw = buscar_jogos_futuros()
 
     if not jogos_raw:
-        st.warning("Nenhum evento futuro encontrado no momento.")
+        st.warning("Nenhum evento futuro encontrado nas ligas monitoradas.")
     else:
         jogos_processados = []
         agora_utc = datetime.now(timezone.utc)
 
         for item in jogos_raw:
-            sport_key = item.get("sport_key", "")
-            if "soccer" not in sport_key:
-                continue
-
-            time_casa = item.get("home_team", "Mandante")
-            time_fora = item.get("away_team", "Visitante")
-            liga = item.get("sport_title", "Futebol Global")
             data_raw = item.get("commence_time", "")
+            if not data_raw:
+                continue
 
             try:
                 dt_utc = datetime.strptime(data_raw, "%Y-%m-%dT%H:%M:%SZ").replace(
                     tzinfo=timezone.utc
                 )
                 
-                # Ignora jogos que já começaram ou passaram do horário
-                if dt_utc < agora_utc:
+                # GARANTIA ABSOLUTA: Descarta qualquer jogo que já começou ou passou
+                if dt_utc <= agora_utc:
                     continue
 
-                dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
-                data_formatada = dt_local.strftime("%d/%m - %H:%M")
+                # Converte para o fuso horário de Brasília (UTC-3)
+                dt_local = dt_utc - timedelta(hours=3)
+                
+                # Define se é Hoje, Amanhã ou Outra Data
+                hoje_local = (agora_utc - timedelta(hours=3)).date()
+                data_jogo = dt_local.date()
+
+                if data_jogo == hoje_local:
+                    rotulo_data = f"HOJE às {dt_local.strftime('%H:%M')}"
+                elif data_jogo == hoje_local + timedelta(days=1):
+                    rotulo_data = f"AMANHÃ às {dt_local.strftime('%H:%M')}"
+                else:
+                    rotulo_data = dt_local.strftime("%d/%m às %H:%M")
+
             except Exception:
                 continue
+
+            time_casa = item.get("home_team", "Mandante")
+            time_fora = item.get("away_team", "Visitante")
+            liga = item.get("sport_title", "Futebol Global")
 
             odd_casa, odd_empate, odd_fora = "N/A", "N/A", "N/A"
             odd_over25, odd_under25 = "N/A", "N/A"
@@ -280,7 +299,6 @@ if btn_buscar:
                     if (c < 2.2 and f < 2.2)
                     else "Under 4.5 Cartões Amarelos"
                 ),
-                "est_faltas": "22 a 27 Faltas Totais",
                 "dica_alta": dica_alta,
                 "dica_media": dica_media,
                 "dica_baixa": dica_baixa,
@@ -291,14 +309,18 @@ if btn_buscar:
                 "liga": liga,
                 "casa": time_casa,
                 "fora": time_fora,
-                "data_hora": data_formatada,
+                "data_hora": rotulo_data,
+                "dt_utc": dt_utc,
             }
             jogos_processados.append((info, analise))
 
+        # Ordena os jogos por data/hora de início (os mais próximos primeiro)
+        jogos_processados.sort(key=lambda x: x[0]["dt_utc"])
+
         if not jogos_processados:
-            st.warning("Nenhum jogo pré-partida futuro encontrado nas ligas monitoradas no momento.")
+            st.warning("Nenhum jogo pré-partida futuro encontrado no momento.")
         else:
-            st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas!")
+            st.success(f"✅ {len(jogos_processados)} jogos futuros encontrados e prontos para análise!")
 
             for info, analise in jogos_processados:
                 with st.container():
@@ -319,15 +341,9 @@ if btn_buscar:
                         st.write(
                             f"📈 **Gols (Over/Under 2.5):** Over 2.5: @{analise['odd_over25']} | Under 2.5: @{analise['odd_under25']}"
                         )
-                        st.write(
-                            f"🚩 **Escanteios:** {analise['est_cantos']}"
-                        )
-                        st.write(
-                            f"🎯 **Finalizações no Gol:** {analise['est_chutes']}"
-                        )
-                        st.write(
-                            f"🟨 **Cartões:** {analise['est_cartoes']}"
-                        )
+                        st.write(f"🚩 **Escanteios:** {analise['est_cantos']}")
+                        st.write(f"🎯 **Finalizações no Gol:** {analise['est_chutes']}")
+                        st.write(f"🟨 **Cartões:** {analise['est_cartoes']}")
 
                         st.markdown("---")
                         st.markdown("**🎯 INDICAÇÕES DE APOSTA:**")
@@ -346,7 +362,7 @@ if btn_buscar:
                         )
                         st.write("")
 
-            # BILHETES PRONTOS
+            # GERADOR DE BILHETES PRONTOS
             if len(jogos_processados) >= 2:
                 st.markdown("---")
                 st.subheader("🔥 BILHETES PRONTOS RECOMENDADOS 🔥")
@@ -386,6 +402,6 @@ if btn_buscar:
                 ) in enumerate(duplas, start=1):
                     st.info(
                         f"**🔹 DUPLA {idx} — ODD TOTAL: @{odd_total}**\n\n"
-                        f"• {j1_info['casa']} vs {j1_info['fora']} ➔ {j1_an['dica_alta']}\n\n"
-                        f"• {j2_info['casa']} vs {j2_info['fora']} ➔ {j2_an['dica_alta']}"
+                        f"• [{j1_info['data_hora']}] {j1_info['casa']} vs {j1_info['fora']} ➔ {j1_an['dica_alta']}\n\n"
+                        f"• [{j2_info['data_hora']}] {j2_info['casa']} vs {j2_info['fora']} ➔ {j2_an['dica_alta']}"
                     )
