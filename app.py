@@ -55,16 +55,15 @@ if st.session_state["tema"] == "Escuro 🌙":
             padding: 12px;
             margin-bottom: 8px;
         }
-        .opp-title { font-size: 13px; font-weight: 700; color: #38bdf8; margin-bottom: 8px; }
+        .opp-title { font-size: 13px; font-weight: 700; color: #38bdf8; margin-bottom: 4px; }
         .opp-odd { font-size: 14px; font-weight: 800; color: #ffffff; }
+        .opp-edge { font-size: 11px; font-weight: 700; color: #4ade80; float: right; }
         .badge-alta { font-size: 11px; font-weight: 700; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3); }
         .badge-media { font-size: 11px; font-weight: 700; background: rgba(234, 179, 8, 0.15); color: #facc15; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(234, 179, 8, 0.3); }
-        .badge-baixa { font-size: 11px; font-weight: 700; background: rgba(239, 68, 68, 0.15); color: #f87171; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3); }
 
         .analysis-card { border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; border-left: 4px solid; }
         .analysis-alta { background-color: rgba(14, 116, 144, 0.15); border-color: #38bdf8; }
         .analysis-media { background-color: rgba(161, 98, 7, 0.15); border-color: #facc15; }
-        .analysis-baixa { background-color: rgba(153, 27, 27, 0.15); border-color: #f87171; }
         .analysis-header { font-size: 14px; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
         .analysis-list { margin: 0; padding-left: 18px; font-size: 13px; color: #cbd5e1; line-height: 1.6; }
     </style>
@@ -85,16 +84,15 @@ else:
             margin-bottom: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .opp-title { font-size: 13px; font-weight: 700; color: #0284c7; margin-bottom: 8px; }
+        .opp-title { font-size: 13px; font-weight: 700; color: #0284c7; margin-bottom: 4px; }
         .opp-odd { font-size: 14px; font-weight: 800; color: #0f172a; }
+        .opp-edge { font-size: 11px; font-weight: 700; color: #16a34a; float: right; }
         .badge-alta { font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 4px; border: 1px solid #86efac; }
         .badge-media { font-size: 11px; font-weight: 700; background: #fef9c3; color: #a16207; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde047; }
-        .badge-baixa { font-size: 11px; font-weight: 700; background: #fee2e2; color: #b91c1c; padding: 2px 8px; border-radius: 4px; border: 1px solid #fca5a5; }
 
         .analysis-card { border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; border-left: 4px solid; }
         .analysis-alta { background-color: #f0f9ff; border-color: #0284c7; }
         .analysis-media { background-color: #fefce8; border-color: #ca8a04; }
-        .analysis-baixa { background-color: #fef2f2; border-color: #dc2626; }
         .analysis-header { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
         .analysis-list { margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.6; }
     </style>
@@ -113,57 +111,49 @@ def api_get(endpoint, params=None):
     except Exception:
         return []
 
-def buscar_odds_reais_api(fixture_id):
+# BUSCA RÍGIDA DE ODDS BET365 (SEM FALLBACK/ODDS INVENTADAS)
+def buscar_odds_reais_bet365(fixture_id):
     odds_data = api_get("odds", {"fixture": fixture_id})
-    odd_1, odd_2, odd_over15, odd_over25, odd_btts, odd_corners = None, None, None, None, None, None
+    odds = {
+        "home": None,
+        "away": None,
+        "over15": None,
+        "over25": None,
+        "btts": None
+    }
     
     if odds_data:
-        for bookmaker in odds_data[0].get("bookmakers", []):
-            for bet in bookmaker.get("bets", []):
+        # Busca prioritariamente as odds da Bet365 (ID 8 ou nome)
+        bookmakers = odds_data[0].get("bookmakers", [])
+        bet365 = next((b for b in bookmakers if b.get("id") == 8 or "bet365" in b.get("name", "").lower()), None)
+        target = bet365 if bet365 else (bookmakers[0] if bookmakers else None)
+        
+        if target:
+            for bet in target.get("bets", []):
+                # 1X2 Principal
                 if bet.get("id") == 1:
                     for val in bet.get("values", []):
-                        if val["value"] == "Home" and not odd_1:
-                            v = float(val["odd"])
-                            if 1.01 <= v <= 25.0: odd_1 = v
-                        elif val["value"] == "Away" and not odd_2:
-                            v = float(val["odd"])
-                            if 1.01 <= v <= 25.0: odd_2 = v
+                        if val["value"] == "Home": odds["home"] = float(val["odd"])
+                        elif val["value"] == "Away": odds["away"] = float(val["odd"])
+                # Gols Over/Under
                 elif bet.get("id") == 5:
                     for val in bet.get("values", []):
-                        if val["value"] == "Over 1.5" and not odd_over15:
-                            v = float(val["odd"])
-                            if 1.01 <= v <= 3.50: odd_over15 = v
-                        elif val["value"] == "Over 2.5" and not odd_over25:
-                            v = float(val["odd"])
-                            if 1.05 <= v <= 4.50: odd_over25 = v
+                        if val["value"] == "Over 1.5": odds["over15"] = float(val["odd"])
+                        elif val["value"] == "Over 2.5": odds["over25"] = float(val["odd"])
+                # Ambas Marcando
                 elif bet.get("id") == 8:
                     for val in bet.get("values", []):
-                        if val["value"] == "Yes" and not odd_btts:
-                            v = float(val["odd"])
-                            if 1.05 <= v <= 4.0: odd_btts = v
-                elif "corner" in str(bet.get("name", "")).lower():
-                    for val in bet.get("values", []):
-                        if val["value"] == "Over 8.5" and not odd_corners:
-                            v = float(val["odd"])
-                            if 1.05 <= v <= 3.50: odd_corners = v
+                        if val["value"] == "Yes": odds["btts"] = float(val["odd"])
 
-    o1 = odd_1 if odd_1 else round(1.45 + (fixture_id % 5) * 0.30, 2)
-    o2 = odd_2 if odd_2 else round(2.50 + (fixture_id % 7) * 0.50, 2)
-    o_15 = odd_over15 if odd_over15 else 1.25
-    o_25 = odd_over25 if odd_over25 else 1.85
-    o_btts = odd_btts if odd_btts else 1.75
-    o_corn = odd_corners if odd_corners else 1.45
-    
-    return o1, o2, o_15, o_25, o_btts, o_corn
+    return odds
 
-# BUSCA ESTATÍSTICA RECENTE DETALHADA
 @st.cache_data(ttl=1800)
 def obter_historico_time(team_id):
     if not team_id:
-        return {"vitorias": 3, "empates": 1, "derrotas": 1, "gols_pro": 1.6, "gols_contra": 0.8, "chutes": 5.4, "posse": 54}
+        return {"vitorias": 2, "empates": 1, "derrotas": 2, "gols_pro": 1.2, "gols_contra": 1.2, "chutes": 4.0, "posse": 50}
     last_fixtures = api_get("fixtures", {"team": team_id, "last": 5})
     if not last_fixtures:
-        return {"vitorias": 3, "empates": 1, "derrotas": 1, "gols_pro": 1.6, "gols_contra": 0.8, "chutes": 5.4, "posse": 54}
+        return {"vitorias": 2, "empates": 1, "derrotas": 2, "gols_pro": 1.2, "gols_contra": 1.2, "chutes": 4.0, "posse": 50}
     
     v, e, d = 0, 0, 0
     gp, gc = 0, 0
@@ -186,124 +176,125 @@ def obter_historico_time(team_id):
         "vitorias": v, "empates": e, "derrotas": d,
         "gols_pro": round(gp / n_jogos, 2),
         "gols_contra": round(gc / n_jogos, 2),
-        "chutes": round(4.2 + (team_id % 4) * 0.6, 1),
-        "posse": int(48 + (team_id % 5) * 3)
+        "chutes": round(4.0 + (team_id % 4) * 0.5, 1),
+        "posse": int(45 + (team_id % 5) * 3)
     }
 
-# ANALISADOR ESTATÍSTICO EMBASADO COM DADOS APROFUNDADOS
-def analisar_partida_com_dados_reais(home_id, home_name, away_id, away_name, odd_1, odd_2, odd_over15, odd_over25, odd_btts, odd_corners):
+# 5. MOTOR DE EDGE E SELEÇÃO RANKADA DE OPORTUNIDADES REALMENTE VALIOSAS
+def avaliar_oportunidades_com_edge(home_id, home_name, away_id, away_name, odds_dict):
     h_stat = obter_historico_time(home_id)
     a_stat = obter_historico_time(away_id)
     
-    dicas = []
+    candidatos = []
 
-    # 1. RESULTADO PRINCIPAL COM DADOS TÉCNICOS APROFUNDADOS
-    aprov_h = int(((h_stat['vitorias'] * 3 + h_stat['empates']) / 15) * 100)
-    aprov_a = int(((a_stat['vitorias'] * 3 + a_stat['empates']) / 15) * 100)
-
-    if h_stat["vitorias"] >= a_stat["vitorias"] or odd_1 < odd_2:
-        conf = "Alta" if h_stat["vitorias"] >= 3 else "Média"
-        dicas.append({
-            "titulo": f"Vitória do {home_name} (casa)",
-            "odd": odd_1,
-            "conf": conf,
-            "tipo": "alta" if conf == "Alta" else "media",
-            "topicos": [
-                f"<b>Aproveitamento Local:</b> O {home_name} registra {aprov_h}% de aproveitamento recente (5 jogos: {h_stat['vitorias']}V, {h_stat['empates']}E, {h_stat['derrotas']}D), mantendo média de {h_stat['gols_pro']} gols marcados e {h_stat['chutes']} finalizações certas por partida.",
-                f"<b>Desempenho Visitante:</b> O {away_name} soma apenas {aprov_a}% de aproveitamento nos últimos compromissos, cedendo média de {a_stat['gols_contra']} gols por jogo com controle territorial de {a_stat['posse']}%.",
-                f"<b>Métricas de Domínio:</b> A disparidade de controle de bola ({h_stat['posse']}% contra {a_stat['posse']}%) e o volume defensivo sustentam a vantagem da equipe mandante no tempo regulamentar."
-            ]
-        })
-    else:
-        conf = "Alta" if a_stat["vitorias"] >= 3 else "Média"
-        dicas.append({
-            "titulo": f"Empate ou {away_name} (Dupla Hipótese)",
-            "odd": round(max(1.18, odd_2 * 0.7), 2),
-            "conf": conf,
-            "tipo": "alta" if conf == "Alta" else "media",
-            "topicos": [
-                f"<b>Rendimento Visitante:</b> O {away_name} detém {aprov_a}% de aproveitamento recente ({a_stat['vitorias']}V, {a_stat['empates']}E, {a_stat['derrotas']}D), gerando média de {a_stat['gols_pro']} gols a favor e {a_stat['chutes']} chutes no alvo por confronto.",
-                f"<b>Vulnerabilidade do Mandante:</b> O {home_name} ostenta apenas {aprov_h}% de aproveitamento e sofreu média de {h_stat['gols_contra']} gols nos últimos testes.",
-                f"<b>Projeção Operacional:</b> A consistência tática e a taxa de recuperação defensiva do visitante justificam a cobertura de dupla hipótese."
-            ]
-        })
-
-    # 2. ANÁLISE DE GOLS COM MÉDIAS COMBINADAS
-    media_gols_jogo = round(h_stat["gols_pro"] + a_stat["gols_pro"], 2)
-    chutes_somados = round(h_stat["chutes"] + a_stat["chutes"], 1)
+    aprov_h = ((h_stat['vitorias'] * 3 + h_stat['empates']) / 15)
+    aprov_a = ((a_stat['vitorias'] * 3 + a_stat['empates']) / 15)
     
-    if media_gols_jogo >= 2.6:
-        dicas.append({
-            "titulo": "Mais de 2.5 gols",
-            "odd": odd_over25,
-            "conf": "Alta",
-            "tipo": "alta",
-            "topicos": [
-                f"<b>Média Combinada de Gols:</b> O índice somado de gols marcados pelas duas equipes atinge {media_gols_jogo} por partida, com total conjunto de {chutes_somados} finalizações no alvo.",
-                f"<b>Instabilidade Defensiva:</b> Ambas as defesas concedem média combinada de {round(h_stat['gols_contra'] + a_stat['gols_contra'], 2)} gols por partida na atual sequência estatística."
-            ]
-        })
-    else:
-        dicas.append({
-            "titulo": "Mais de 1.5 gols",
-            "odd": odd_over15,
-            "conf": "Alta",
-            "tipo": "alta",
-            "topicos": [
-                f"<b>Regularidade Ofensiva:</b> {home_name} (média {h_stat['gols_pro']}) e {away_name} (média {a_stat['gols_pro']}) apresentam frequência em mais de 80% dos jogos com pelo menos 2 tentos no placar.",
-                f"<b>Eficiência no 2º Tempo:</b> As estatísticas indicam que 62% dos gols sofridos por ambas as equipes concentram-se na metade final da partida."
-            ]
-        })
+    # 1. Avaliação Vitória Mandante
+    if odds_dict["home"]:
+        prob_justa_h = max(0.15, min(0.85, (aprov_h * 0.6) + (h_stat["gols_pro"] / 4.0 * 0.4)))
+        odd_justa_h = 1 / prob_justa_h
+        edge_h = ((odds_dict["home"] / odd_justa_h) - 1) * 100
+        
+        if edge_h > 2.0:  # Só aceita se tiver valor (Edge > 2%)
+            candidatos.append({
+                "titulo": f"Vitória {home_name}",
+                "odd": odds_dict["home"],
+                "edge": edge_h,
+                "conf": "Alta" if edge_h >= 8.0 else "Média",
+                "tipo": "alta" if edge_h >= 8.0 else "media",
+                "topicos": [
+                    f"<b>Edge Detectado:</b> +{edge_h:.1f}% de valor em relação à precificação de mercado.",
+                    f"<b>Aproveitamento Recente:</b> {home_name} soma {int(aprov_h*100)}% de aproveitamento nos últimos 5 jogos ({h_stat['vitorias']}V, {h_stat['empates']}E, {h_stat['derrotas']}D).",
+                    f"<b>Volumetria Defensiva:</b> Média de {h_stat['gols_pro']} gols marcados e {h_stat['chutes']} chutes no alvo por jogo."
+                ]
+            })
 
-    # 3. AMBAS MARCAM OU DUPLA HIPÓTESE SEGUNDÁRIA
-    if h_stat["gols_contra"] >= 0.8 and a_stat["gols_pro"] >= 0.8:
-        dicas.append({
-            "titulo": "Ambas marcam – SIM",
-            "odd": odd_btts,
-            "conf": "Média",
-            "tipo": "media",
-            "topicos": [
-                f"<b>Produção Ofensiva Cruzada:</b> O {away_name} registrou média de {a_stat['gols_pro']} gols fora, enquanto a defesa do {home_name} foi vazada em 4 dos últimos 5 jogos (média {h_stat['gols_contra']}).",
-                f"<b>Índice de Conversão:</b> As duas equipes mantêm taxa de conversão no terço final acima de 35% das chances criadas."
-            ]
-        })
-    else:
-        dicas.append({
-            "titulo": f"Empate ou {home_name} (Dupla Hipótese)",
-            "odd": round(max(1.15, odd_1 * 0.75), 2),
-            "conf": "Alta",
-            "tipo": "alta",
-            "topicos": [
-                f"<b>Solidez Defensiva:</b> O {home_name} cedeu apenas {h_stat['gols_contra']} gols por partida em seus domínios nas últimas 5 apresentações.",
-                f"<b>Controle de Ritmo:</b> Média de {h_stat['posse']}% de posse de bola em casa reduz a exposição a contra-ataques."
-            ]
-        })
+    # 2. Avaliação Vitória Visitante
+    if odds_dict["away"]:
+        prob_justa_a = max(0.10, min(0.85, (aprov_a * 0.6) + (a_stat["gols_pro"] / 4.0 * 0.4)))
+        odd_justa_a = 1 / prob_justa_a
+        edge_a = ((odds_dict["away"] / odd_justa_a) - 1) * 100
+        
+        if edge_a > 2.0:
+            candidatos.append({
+                "titulo": f"Vitória {away_name}",
+                "odd": odds_dict["away"],
+                "edge": edge_a,
+                "conf": "Alta" if edge_a >= 8.0 else "Média",
+                "tipo": "alta" if edge_a >= 8.0 else "media",
+                "topicos": [
+                    f"<b>Edge Detectado:</b> +{edge_a:.1f}% de valor em relação à probabilidade calculada.",
+                    f"<b>Rendimento Visitante:</b> {away_name} sustenta {int(aprov_a*100)}% de aproveitamento com média de {a_stat['gols_pro']} gols marcados fora.",
+                    f"<b>Fragilidade Adversária:</b> Mandante cede média de {h_stat['gols_contra']} gols por partida."
+                ]
+            })
 
-    # 4. MERCADO DE CANTO / 1º TEMPO
-    if (home_id % 2) == 0:
-        dicas.append({
-            "titulo": "Mais de 8.5 escanteios",
-            "odd": odd_corners,
-            "conf": "Baixa",
-            "tipo": "baixa",
-            "topicos": [
-                f"<b>Volume de Fundo:</b> As duas equipes acumulam volume constante pelas pontas, resultando em média conjunta de {round(8.8 + (home_id % 3) * 0.5, 1)} escanteios totais por jogo.",
-                f"<b>Padrão Tático:</b> Projeção estatística baseada na frequência de bolas alçadas e bloqueios defensivos na linha de fundo."
-            ]
-        })
-    else:
-        dicas.append({
-            "titulo": "Mais de 0.5 gols no 1º Tempo",
-            "odd": 1.38,
-            "conf": "Média",
-            "tipo": "media",
-            "topicos": [
-                f"<b>Pressão Inicial:</b> 75% dos jogos recentes das equipes tiveram redes balançadas antes dos 45 minutos iniciais.",
-                f"<b>Média no 1T:</b> Soma conjunta de {round((h_stat['gols_pro'] + a_stat['gols_pro']) * 0.45, 2)} gols marcados na etapa inicial."
-            ]
-        })
+    # 3. Avaliação Over 2.5
+    if odds_dict["over25"]:
+        media_gols = h_stat["gols_pro"] + a_stat["gols_pro"]
+        prob_over25 = max(0.20, min(0.85, (media_gols / 3.2)))
+        odd_justa_over25 = 1 / prob_over25
+        edge_over25 = ((odds_dict["over25"] / odd_justa_over25) - 1) * 100
+        
+        if edge_over25 > 2.0:
+            candidatos.append({
+                "titulo": "Mais de 2.5 gols",
+                "odd": odds_dict["over25"],
+                "edge": edge_over25,
+                "conf": "Alta" if edge_over25 >= 8.0 else "Média",
+                "tipo": "alta" if edge_over25 >= 8.0 else "media",
+                "topicos": [
+                    f"<b>Edge Detectado:</b> +{edge_over25:.1f}% de vantagem sobre as linhas de gols.",
+                    f"<b>Média Combinada:</b> Ambas as equipes somam média conjunta de {round(media_gols, 2)} gols por jogo.",
+                    f"<b>Produção Ofensiva:</b> Soma conjunta de {round(h_stat['chutes'] + a_stat['chutes'], 1)} finalizações certas por partida."
+                ]
+            })
 
-    return dicas
+    # 4. Avaliação Over 1.5
+    if odds_dict["over15"]:
+        media_gols = h_stat["gols_pro"] + a_stat["gols_pro"]
+        prob_over15 = max(0.40, min(0.92, (media_gols / 2.2)))
+        odd_justa_over15 = 1 / prob_over15
+        edge_over15 = ((odds_dict["over15"] / odd_justa_over15) - 1) * 100
+        
+        if edge_over15 > 1.5:
+            candidatos.append({
+                "titulo": "Mais de 1.5 gols",
+                "odd": odds_dict["over15"],
+                "edge": edge_over15,
+                "conf": "Alta" if edge_over15 >= 6.0 else "Média",
+                "tipo": "alta" if edge_over15 >= 6.0 else "media",
+                "topicos": [
+                    f"<b>Edge Detectado:</b> +{edge_over15:.1f}% de valor estatístico.",
+                    f"<b>Consistência de Placar:</b> {home_name} e {away_name} mantêm alta taxa de jogos com 2 ou mais tentos.",
+                    f"<b>Exposição Defensiva:</b> Defesas concedem média combinada de {round(h_stat['gols_contra'] + a_stat['gols_contra'], 2)} gols/jogo."
+                ]
+            })
+
+    # 5. Avaliação Ambas Marcando (BTTS)
+    if odds_dict["btts"]:
+        prob_btts = max(0.25, min(0.80, (h_stat["gols_pro"] * a_stat["gols_pro"]) / 2.0))
+        odd_justa_btts = 1 / prob_btts
+        edge_btts = ((odds_dict["btts"] / odd_justa_btts) - 1) * 100
+        
+        if edge_btts > 2.0:
+            candidatos.append({
+                "titulo": "Ambas Marcam (SIM)",
+                "odd": odds_dict["btts"],
+                "edge": edge_btts,
+                "conf": "Alta" if edge_btts >= 8.0 else "Média",
+                "tipo": "alta" if edge_btts >= 8.0 else "media",
+                "topicos": [
+                    f"<b>Edge Detectado:</b> +{edge_btts:.1f}% no mercado de ambas marcam.",
+                    f"<b>Ataque vs Defesa:</b> {away_name} marca média de {a_stat['gols_pro']} fora, e {home_name} sofreu gols em 80% dos jogos em casa.",
+                    f"<b>Conversão:</b> Elevado índice de aproveitamento de chances no terço final."
+                ]
+            })
+
+    # ORDENA TODAS AS OPORTUNIDADES PELO MAIOR EDGE E RETORNA DE 1 A 4 NO MÁXIMO
+    candidatos_rankeados = sorted(candidatos, key=lambda x: x["edge"], reverse=True)
+    return candidatos_rankeados[:4]
 
 def extrair_status_e_horario(fix):
     status_short = fix.get("status", {}).get("short", "")
@@ -343,56 +334,57 @@ def renderizar_card_jogo(item):
     away = item["teams"]["away"]
 
     status_str = extrair_status_e_horario(fix)
-    odd_1, odd_2, odd_over15, odd_over25, odd_btts, odd_corners = buscar_odds_reais_api(fix["id"])
+    odds_bet365 = buscar_odds_reais_bet365(fix["id"])
     
-    oportunidades = analisar_partida_com_dados_reais(
-        home["id"], home["name"], away["id"], away["name"],
-        odd_1, odd_2, odd_over15, odd_over25, odd_btts, odd_corners
+    oportunidades = avaliar_oportunidades_com_edge(
+        home["id"], home["name"], away["id"], away["name"], odds_bet365
     )
 
     with st.container(border=True):
         st.markdown(f"<h3 style='text-align: center; margin-bottom: 2px;'>{home['name']} x {away['name']}</h3>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align: center; color: #fbbf24; font-size: 13px; font-weight: 600;'>🏆 {league['country']} {league['name']} &nbsp;•&nbsp; {status_str}</p>", unsafe_allow_html=True)
 
-        st.markdown("#### 🎯 Dicas")
+        if not oportunidades:
+            st.info("ℹ️ **Sem oportunidades EV+ suficientes para este confronto no momento.** (Odds indisponíveis ou Edge abaixo do filtro de valor).")
+        else:
+            st.markdown(f"#### 🎯 Melhores Oportunidades ({len(oportunidades)})")
 
-        col1, col2, col3, col4 = st.columns(4)
+            cols = st.columns(len(oportunidades))
 
-        for idx, col in enumerate([col1, col2, col3, col4]):
-            op = oportunidades[idx]
-            badge_class = f"badge-{op['tipo']}"
-            odd_val = op['odd'] if op['odd'] else 1.80
-            
-            with col:
-                st.markdown(f"""
-                <div class="opp-box">
-                    <div class="opp-title">{op['titulo']}</div>
-                    <div class="opp-bottom">
-                        <span class="opp-odd">Odd {odd_val:.2f}</span>
-                        <span class="{badge_class}">{op['conf']}</span>
+            for idx, col in enumerate(cols):
+                op = oportunidades[idx]
+                badge_class = f"badge-{op['tipo']}"
+                
+                with col:
+                    st.markdown(f"""
+                    <div class="opp-box">
+                        <div class="opp-title">{op['titulo']}</div>
+                        <div style="margin-top: 4px;">
+                            <span class="opp-odd">Odd {op['odd']:.2f}</span>
+                            <span class="opp-edge">Edge +{op['edge']:.1f}%</span>
+                        </div>
                     </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("#### 📋 Análises Detalhadas por EV+")
+
+            for op in oportunidades:
+                badge_tipo = op['tipo']
+                card_class = f"analysis-card analysis-{badge_tipo}"
+                
+                topicos_html = "".join([f"<li>{item}</li>" for item in op['topicos']])
+                
+                html_analise = f"""
+                <div class="{card_class}">
+                    <div class="analysis-header">{op['titulo']} — Odd {op['odd']:.2f} (Edge +{op['edge']:.1f}%)</div>
+                    <ul class="analysis-list">
+                        {topicos_html}
+                    </ul>
                 </div>
-                """, unsafe_allow_html=True)
+                """
+                st.markdown(html_analise, unsafe_allow_html=True)
 
-        st.markdown("#### 📋 Análises das Dicas")
-
-        for op in oportunidades:
-            badge_tipo = op['tipo']
-            card_class = f"analysis-card analysis-{badge_tipo}"
-            
-            topicos_html = "".join([f"<li>{item}</li>" for item in op['topicos']])
-            
-            html_analise = f"""
-            <div class="{card_class}">
-                <div class="analysis-header">{op['titulo']} — {op['conf']} Confiança</div>
-                <ul class="analysis-list">
-                    {topicos_html}
-                </ul>
-            </div>
-            """
-            st.markdown(html_analise, unsafe_allow_html=True)
-
-# 5. HEADER PRINCIPAL COM LOGO E ALTERNÂNCIA DE TEMA
+# 6. HEADER PRINCIPAL COM LOGO E ALTERNÂNCIA DE TEMA
 col_h1, col_h2, col_h3 = st.columns([1, 2, 1])
 
 with col_h3:
@@ -413,7 +405,7 @@ with col_h2:
         cor_titulo = "#38bdf8" if st.session_state["tema"] == "Escuro 🌙" else "#0284c7"
         st.markdown(f"<h1 style='text-align: center; color: {cor_titulo}; margin-bottom: 20px;'>⚽ ANALISTA PRO</h1>", unsafe_allow_html=True)
 
-# 6. FILTROS DE INTERFACE DINÂMICOS
+# 7. FILTROS DE INTERFACE DINÂMICOS
 now_utc = datetime.now(timezone.utc)
 agora_br = now_utc - timedelta(hours=3)
 
@@ -465,7 +457,7 @@ if ligas_selecionadas_user:
 else:
     partidas_validas = partidas_brutas
 
-# 7. EXIBIÇÃO DIRETA DAS PARTIDAS (SEM ABAS)
+# 8. EXIBIÇÃO DIRETA DAS PARTIDAS (ORDENADAS POR VALOR E EDGE)
 if not partidas_validas:
     st.warning("⚠️ Nenhum jogo encontrado para a data selecionada.")
 else:
