@@ -22,61 +22,6 @@ def normalizar_texto(texto):
     nfkd = unicodedata.normalize('NFD', texto)
     return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().strip()
 
-# MAPA ESTRITO DE LIGAS COM CHAVES PAÍS + NOME DA LIGA
-LIGAS_MAPA = {
-    # Brasil
-    "Brasileirão Série A": [{"pais": "brazil", "kw": "serie a"}, {"pais": "brazil", "kw": "brasileirao"}],
-    "Brasileirão Série B": [{"pais": "brazil", "kw": "serie b"}],
-    "Brasileirão Série C": [{"pais": "brazil", "kw": "serie c"}],
-    "Brasileirão Série D": [{"pais": "brazil", "kw": "serie d"}],
-    "Copa do Brasil": [{"pais": "brazil", "kw": "copa do brasil"}],
-    "Supercopa do Brasil": [{"pais": "brazil", "kw": "supercopa"}],
-    "Copa do Nordeste": [{"pais": "brazil", "kw": "nordeste"}],
-    "Brasileiro Feminino": [{"pais": "brazil", "kw": "women"}],
-    "Campeonato Paulista": [{"pais": "brazil", "kw": "paulista"}],
-    "Campeonato Carioca": [{"pais": "brazil", "kw": "carioca"}],
-    "Campeonato Mineiro": [{"pais": "brazil", "kw": "mineiro"}],
-    "Campeonato Gaúcho": [{"pais": "brazil", "kw": "gaucho"}],
-    "Campeonato Paranaense": [{"pais": "brazil", "kw": "paranaense"}],
-    "Campeonato Catarinense": [{"pais": "brazil", "kw": "catarinense"}],
-    "Campeonato Baiano": [{"pais": "brazil", "kw": "baiano"}],
-    "Campeonato Pernambucano": [{"pais": "brazil", "kw": "pernambucano"}],
-    "Campeonato Cearense": [{"pais": "brazil", "kw": "cearense"}],
-    "Campeonato Goiano": [{"pais": "brazil", "kw": "goiano"}],
-
-    # América do Sul
-    "Copa Libertadores": [{"pais": "world", "kw": "libertadores"}, {"pais": "south america", "kw": "libertadores"}],
-    "Copa Sudamericana": [{"pais": "world", "kw": "sudamericana"}, {"pais": "south america", "kw": "sudamericana"}],
-    "Recopa Sudamericana": [{"pais": "world", "kw": "recopa"}],
-    "Argentina Primera División": [{"pais": "argentina", "kw": "primera division"}, {"pais": "argentina", "kw": "liga profesional"}],
-    "Copa Argentina": [{"pais": "argentina", "kw": "copa argentina"}],
-    "Chile Primera División": [{"pais": "chile", "kw": "primera division"}],
-    "Colombia Primera A": [{"pais": "colombia", "kw": "primera a"}],
-    "Uruguay Primera División": [{"pais": "uruguay", "kw": "primera division"}],
-
-    # Europa
-    "Premier League": [{"pais": "england", "kw": "premier league"}],
-    "Championship": [{"pais": "england", "kw": "championship"}],
-    "FA Cup": [{"pais": "england", "kw": "fa cup"}],
-    "LaLiga": [{"pais": "spain", "kw": "laliga"}, {"pais": "spain", "kw": "liga bbva"}],
-    "Copa del Rey": [{"pais": "spain", "kw": "copa del rey"}],
-    "Serie A (Itália)": [{"pais": "italy", "kw": "serie a"}],
-    "Coppa Italia": [{"pais": "italy", "kw": "coppa italia"}],
-    "Bundesliga": [{"pais": "germany", "kw": "bundesliga"}],
-    "Ligue 1": [{"pais": "france", "kw": "ligue 1"}],
-    "Primeira Liga (Portugal)": [{"pais": "portugal", "kw": "primeira liga"}, {"pais": "portugal", "kw": "liga portugal"}],
-    "Eredivisie": [{"pais": "netherlands", "kw": "eredivisie"}],
-
-    # UEFA
-    "UEFA Champions League": [{"pais": "world", "kw": "champions league"}],
-    "UEFA Europa League": [{"pais": "world", "kw": "europa league"}],
-    "UEFA Conference League": [{"pais": "world", "kw": "conference league"}],
-
-    # Outros
-    "MLS": [{"pais": "usa", "kw": "major league soccer"}, {"pais": "usa", "kw": "mls"}],
-    "Saudi Pro League": [{"pais": "saudi arabia", "kw": "pro league"}]
-}
-
 # 2. AUTENTICAÇÃO
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
@@ -92,7 +37,7 @@ if not st.session_state["autenticado"]:
             st.error("Chave de acesso inválida.")
     st.stop()
 
-# 3. ESTILIZAÇÃO CSS PROFISSIONAL PARA AS ANÁLISES
+# 3. ESTILIZAÇÃO CSS PROFISSIONAL
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -458,63 +403,67 @@ with col_img2:
 st.markdown("<h2 style='text-align: center; color: #38bdf8; margin-top: -10px;'>Analisador Pro — IA</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px; margin-top: 5px; margin-bottom: 25px;'>3 Dicas por Jogo (Alta, Média e Baixa Confiança) | API Paga & Modelo Poisson</p>", unsafe_allow_html=True)
 
-# 6. FILTROS DE INTERFACE
+# 6. FILTROS DE INTERFACE DINÂMICOS
+now_utc = datetime.now(timezone.utc)
+agora_br = now_utc - timedelta(hours=3)
+
 col_f1, col_f2 = st.columns([1, 2])
 
 with col_f1:
     opcao_filtro = st.radio("Selecione a data:", ["🔴 Jogos de Hoje", "🟡 Jogos de Amanhã"], horizontal=True)
 
+# DATA SELECIONADA
+data_alvo_str = agora_br.strftime("%Y-%m-%d") if "Hoje" in opcao_filtro else (agora_br + timedelta(days=1)).strftime("%Y-%m-%d")
+
+# REQUISIÇÃO DAS PARTIDAS DA DATA SELECIONADA
+if "last_date" not in st.session_state or st.session_state["last_date"] != data_alvo_str:
+    params = {"timezone": "America/Sao_Paulo", "date": data_alvo_str}
+    fixtures_data = api_get("fixtures", params)
+    st.session_state["raw_fixtures"] = fixtures_data
+    st.session_state["last_date"] = data_alvo_str
+
+raw_fixtures = st.session_state.get("raw_fixtures", [])
+
+# FILTRA JOGOS NÃO INICIADOS
+partidas_brutas = [item for item in raw_fixtures if item["fixture"]["status"]["short"] in ["NS", "TBD"]]
+
+# EXTRAI TODAS AS LIGAS DISPONÍVEIS EXCLUSIVAMENTE NO DIA
+ligas_do_dia_dict = {}
+for item in partidas_brutas:
+    country = item["league"].get("country", "")
+    name = item["league"].get("name", "")
+    nome_exibicao = f"{country}: {name}" if country else name
+    
+    if nome_exibicao not in ligas_do_dia_dict:
+        ligas_do_dia_dict[nome_exibicao] = (country, name)
+
+options_ligas_dia = sorted(list(ligas_do_dia_dict.keys()))
+
 with col_f2:
-    ligas_selecionadas = st.multiselect(
-        "Filtrar Ligas Específicas:",
-        options=sorted(list(LIGAS_MAPA.keys())),
-        placeholder="Todas as ligas autorizadas (ou digite para filtrar)"
+    ligas_selecionadas_user = st.multiselect(
+        "Filtrar Ligas Disponíveis no Dia:",
+        options=options_ligas_dia,
+        placeholder="Todas as ligas com jogos hoje/amanhã (ou digite para filtrar)"
     )
 
 btn_buscar = st.button("🔍 CARREGAR PROGNÓSTICOS DA IA", use_container_width=True)
 
-now_utc = datetime.now(timezone.utc)
-agora_br = now_utc - timedelta(hours=3)
-
-if btn_buscar or "analise_cache" not in st.session_state:
-    params = {"timezone": "America/Sao_Paulo"}
-    params["date"] = agora_br.strftime("%Y-%m-%d") if "Hoje" in opcao_filtro else (agora_br + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    fixtures = api_get("fixtures", params)
-    st.session_state["raw_fixtures"] = fixtures
-    st.session_state["analise_cache"] = True
-
-raw_fixtures = st.session_state.get("raw_fixtures", [])
-
-# BUSCA PRECISA DE LIGAS (PAÍS + PALAVRA CHAVE)
+# FILTRAGEM FINAL DOS JOGOS
 partidas_validas = []
-ligas_alvo = ligas_selecionadas if ligas_selecionadas else list(LIGAS_MAPA.keys())
-
-for item in raw_fixtures:
-    if item["fixture"]["status"]["short"] in ["NS", "TBD"]:
-        nome_liga_api = normalizar_texto(item["league"]["name"])
-        pais_liga_api = normalizar_texto(item["league"]["country"])
-
-        match_encontrado = False
-        for liga_nome in ligas_alvo:
-            regras = LIGAS_MAPA.get(liga_nome, [])
-            for regra in regras:
-                pais_req = normalizar_texto(regra["pais"])
-                kw_req = normalizar_texto(regra["kw"])
-
-                if (pais_req in pais_liga_api or pais_req == "world") and (kw_req in nome_liga_api):
-                    match_encontrado = True
-                    break
-            if match_encontrado:
-                break
-
-        if match_encontrado:
+if ligas_selecionadas_user:
+    for item in partidas_brutas:
+        country = item["league"].get("country", "")
+        name = item["league"].get("name", "")
+        nome_exibicao = f"{country}: {name}" if country else name
+        if nome_exibicao in ligas_selecionadas_user:
             partidas_validas.append(item)
+else:
+    partidas_validas = partidas_brutas
 
 if not partidas_validas:
-    st.warning("⚠️ Nenhum jogo das ligas selecionadas foi encontrado para esta data.")
+    st.warning("⚠️ Nenhum jogo encontrado para os filtros selecionados nesta data.")
 else:
-    for item in partidas_validas[:15]:
+    for item in partidas_validas[:20]:
         fix = item["fixture"]
         league = item["league"]
         home = item["teams"]["home"]
