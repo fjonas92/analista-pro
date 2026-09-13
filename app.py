@@ -5,20 +5,78 @@ import streamlit as st
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
-    page_title="RobôTip — Inteligência Artificial",
-    page_icon="🤖",
+    page_title="Analisador Pro — Inteligência Artificial",
+    page_icon="⚽",
     layout="wide"
 )
 
 API_FOOTBALL_KEY = st.secrets.get("API_FOOTBALL_KEY", "0d03200b5ee68704d96a72a1749aeca3")
 LICENCAS_VALIDAS = ["PRO-FUTEBOL-2026", "VIP-ANALISTA-888", "CLIENTE-PRO-01", "ADMIN-MASTER-99"]
 
+# LISTA ESTRITA DE LIGAS PERMITIDAS
+LIGAS_PERMITIDAS = {
+    # Nacionais e Estaduais Brasil
+    "serie a", "serie b", "serie c", "serie d", "copa do brasil", "supercopa do brasil", 
+    "copa do nordeste", "brasileiro feminino", "brasileiro feminino a1", "paulista", "paulista a1",
+    "paulista a2", "paulista segunda divisao", "copa paulista", "carioca", "carioca a2", 
+    "mineiro", "mineiro modulo ii", "mineiro segunda divisao", "gaucho", "gaucho a2", "gaucho b",
+    "paranaense", "paranaense a2", "catarinense", "catarinense b", "baiano", "baiano b",
+    "pernambucano", "pernambucano a2", "cearense", "cearense b", "goiano", "goiano a2",
+    "paraense", "paraense b", "amazonense", "alagoano", "alagoano b", "sergipano", "sergipano a2",
+    "paraibano", "paraibano b", "potiguar", "potiguar segunda divisao", "maranhense", "maranhense b",
+    "piauiense", "piauiense b", "mato-grossense", "sul-mato-grossense", "brasiliense", "capixaba",
+    
+    # América do Sul
+    "conmebol libertadores", "libertadores", "conmebol sudamericana", "sudamericana", "recopa sudamericana",
+    "liga profesional", "primera division", "copa argentina", "supercopa argentina", 
+    "primera b", "copa chile", "supercopa de chile", "primera a", "copa colombia", "superliga colombia",
+    "segunda division", "copa uruguay", "ligapro serie a", "ligapro serie b", "copa ecuador",
+    "division intermedia", "copa paraguay", "liga 1", "liga 2", "copa peru", "division profesional",
+    "copa venezuela",
+
+    # Europa — Principais
+    "premier league", "championship", "league one", "league two", "national league", "fa cup", "efl cup", "community shield",
+    "laliga", "laliga 2", "copa del rey", "supercopa de españa", "coppa italia", "supercoppa italiana",
+    "bundesliga", "2. bundesliga", "dfb-pokal", "dfl-supercup", "ligue 1", "ligue 2", "coupe de france", "trophee des champions",
+    "primeira liga", "liga portugal 2", "taca de portugal", "taca da liga", "supertaca candido de oliveira",
+    "eredivisie", "eerste divisie", "knvb beker", "belgian pro league", "challenger pro league", "belgian cup",
+    "super lig", "turkish cup", "scottish premiership", "scottish championship", "scottish cup",
+    "austrian bundesliga", "austrian cup", "swiss super league", "swiss challenge league", "swiss cup",
+    "greek super league", "greek super league 2", "greek cup", "danish superliga", "danish 1st division", "danish cup",
+    "eliteserien", "norwegian 1st division", "norwegian cup", "allsvenskan", "superettan", "swedish cup",
+    "veikkausliiga", "ykkosliiga", "finnish cup", "ekstraklasa", "i liga", "polish cup",
+    "czech first league", "czech national football league", "czech cup", "hnl", "croatian cup",
+    "superliga", "serbian first league", "serbian cup", "liga i", "liga ii", "romanian cup",
+    "ukrainian premier league", "ukrainian first league", "ukrainian cup", "bulgarian first league", "bulgarian second league", "bulgarian cup",
+    "slovak first league", "slovak 2. liga", "slovak cup", "prvaliga", "slovenian cup",
+    "nb i", "nb ii", "hungarian cup", "israeli premier league", "israeli liga leumit", "israeli state cup",
+    "cypriot first division", "cyprus cup", "irish premier division", "irish first division", "fai cup",
+    "besta deild karla", "besta-deild", "1. deild", "icelandic cup",
+
+    # UEFA / Europa Internacional
+    "uefa champions league", "uefa europa league", "uefa conference league", "uefa super cup",
+    "uefa nations league", "uefa euro", "euro qualifiers", "uefa champions league women",
+    "uefa women's euro", "uefa youth league", "champions league qualifiers", "europa league qualifiers", "conference league qualifiers",
+
+    # América do Norte e Central
+    "major league soccer", "mls", "usl championship", "usl league one", "nwsl", "liga mx", "liga de expansion mx",
+    "liga mx femenil", "copa mx", "campeon de campeones", "leagues cup", "concacaf champions cup",
+    "concacaf gold cup", "concacaf nations league", "primera division", "canada premier league",
+
+    # Ásia / África
+    "afc champions league elite", "afc champions league two", "afc asian cup", "j1 league", "j2 league", "emperor's cup", "j.league cup",
+    "k league 1", "k league 2", "korean fa cup", "chinese super league", "chinese league one", "chinese fa cup",
+    "saudi pro league", "king cup", "uae pro league", "qatar stars league", "a-league men", "a-league women", "australia ffa cup",
+    "v.league 1", "malaysian super league", "indonesian liga 1", "uzbekistan super league",
+    "africa cup of nations", "caf champions league", "caf confederation cup", "egyptian premier league", "south african premiership"
+}
+
 # 2. AUTENTICAÇÃO
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
 if not st.session_state["autenticado"]:
-    st.title("🔒 RobôTip — Acesso Restrito")
+    st.title("🔒 Analisador Pro — Acesso Restrito")
     chave_input = st.text_input("Insira sua licença:", type="password")
     if st.button("ACESSAR PLATAFORMA"):
         if chave_input.strip() in LICENCAS_VALIDAS:
@@ -28,15 +86,13 @@ if not st.session_state["autenticado"]:
             st.error("Chave de acesso inválida.")
     st.stop()
 
-# 3. ESTILIZAÇÃO CSS PARCIAL PARA BADGES E CARDS
+# 3. ESTILIZAÇÃO CSS
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
-    
-    /* Card de Dicas Individual */
     .opp-box {
         background-color: #1a2234;
         border: 1px solid #28354d;
@@ -90,7 +146,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 4. REQUISIÇÕES E CONEXÃO DE DADOS
+# 4. REQUISIÇÕES E ODDS
 @st.cache_data(ttl=900)
 def api_get(endpoint, params=None):
     url = f"https://v3.football.api-sports.io/{endpoint}"
@@ -123,8 +179,8 @@ def buscar_odds_bet365(fixture_id):
                             if val["value"] == "Over 8.5": odd_corners = float(val["odd"])
     return odd_1, odd_over25, odd_btts, odd_corners
 
-# 5. HEADER PRINCIPAL COM A LEGENDA SOLICITADA
-st.markdown("<h1 style='text-align: center; color: #38bdf8; margin-bottom: 0px;'>🤖 RobôTip — Inteligência Artificial</h1>", unsafe_allow_html=True)
+# 5. HEADER PRINCIPAL
+st.markdown("<h1 style='text-align: center; color: #38bdf8; margin-bottom: 0px;'>🤖 Analisador Pro — Inteligência Artificial</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px; margin-top: 5px; margin-bottom: 25px;'>3 Dicas por Jogo (Alta, Média e Baixa Confiança) | API Paga & Modelo Poisson</p>", unsafe_allow_html=True)
 
 opcao_filtro = st.radio("Selecione os jogos:", ["🔴 Jogos de Hoje", "🟡 Jogos de Amanhã"], horizontal=True)
@@ -142,12 +198,20 @@ if btn_buscar or "analise_cache" not in st.session_state:
     st.session_state["analise_cache"] = True
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
-partidas_validas = [item for item in raw_fixtures if item["fixture"]["status"]["short"] in ["NS", "TBD"]]
+
+# FILTRAGEM ESTRITA POR STATUS E POR LIGAS PERMITIDAS
+partidas_validas = []
+for item in raw_fixtures:
+    if item["fixture"]["status"]["short"] in ["NS", "TBD"]:
+        nome_liga = item["league"]["name"].lower().strip()
+        # Verifica se o nome da liga corresponde a qualquer item da lista permitida
+        if any(liga_valida in nome_liga for liga_valida in LIGAS_PERMITIDAS):
+            partidas_validas.append(item)
 
 if not partidas_validas:
-    st.warning("⚠️ Nenhum jogo encontrado para a data selecionada.")
+    st.warning("⚠️ Nenhum jogo das ligas selecionadas foi encontrado para a data.")
 else:
-    for item in partidas_validas[:10]:
+    for item in partidas_validas[:15]:
         fix = item["fixture"]
         league = item["league"]
         home = item["teams"]["home"]
@@ -160,7 +224,6 @@ else:
         odd_btts = odd_btts or 1.29
         odd_corners = odd_corners or 1.17
 
-        # CONTAINER NATIVO DO STREAMLIT (NUNCA QUEBRA HTML)
         with st.container(border=True):
             st.markdown(f"<h3 style='text-align: center; margin-bottom: 2px;'>{home['name']} x {away['name']}</h3>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center; color: #fbbf24; font-size: 13px; font-weight: 600;'>🏆 {league['country']} {league['name']}</p>", unsafe_allow_html=True)
