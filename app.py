@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Estilização CSS personalizada (Badges Verde, Amarelo e Vermelho)
+# CSS Customizado
 st.markdown(
     """
     <style>
@@ -22,14 +22,28 @@ st.markdown(
     [data-testid="stHeader"] {display: none;}
     
     .stApp { background-color: #0E0E10; color: #FFFFFF; font-family: 'Inter', sans-serif; }
-    .main-header { text-align: center; padding: 18px; background-color: #16161A; border-radius: 10px; border: 1px solid #26262C; margin-bottom: 25px; }
+    .main-header { text-align: center; padding: 18px; background-color: #16161A; border-radius: 10px; border: 1px solid #26262C; margin-bottom: 20px; }
     .main-title { color: #FFFFFF; font-size: 1.6em; font-weight: 700; margin: 0; }
     .sub-title { color: #8E8E93; font-size: 0.9em; margin-top: 5px; }
     
+    /* Múltiplas e Duplas do Dia */
+    .combo-container { background-color: #16161A; border: 1px solid #26262C; border-radius: 12px; padding: 18px; margin-bottom: 25px; }
+    .combo-title { font-size: 1.15em; font-weight: bold; color: #FFCC00; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+    .combo-card { background-color: #1A1A1E; border: 1px solid #3A3A42; border-radius: 10px; padding: 14px; height: 100%; }
+    .combo-header { font-weight: bold; font-size: 0.95em; color: #00FF66; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .combo-item { font-size: 0.85em; color: #DDDDDD; padding: 6px 0; border-bottom: 1px solid #26262C; }
+    .combo-item:last-child { border-bottom: none; }
+    
     .match-card { background-color: #141417; border: 1px solid #26262C; border-radius: 12px; padding: 20px; margin-bottom: 25px; }
     .match-header { font-size: 1.3em; font-weight: bold; color: #FFFFFF; margin-bottom: 4px; }
-    .league-header { font-size: 0.85em; color: #8E8E93; margin-bottom: 15px; }
-    .section-label { font-size: 1.0em; font-weight: 600; color: #FFFFFF; margin-top: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .league-header { font-size: 0.85em; color: #8E8E93; margin-bottom: 12px; }
+    
+    /* Odds 1X2 Bet365 Header Bar */
+    .match-odds-bar { display: flex; gap: 10px; background-color: #1A1A1E; border: 1px solid #2A2A30; padding: 8px 12px; border-radius: 6px; margin-bottom: 16px; font-size: 0.88em; }
+    .odd-box { flex: 1; text-align: center; color: #CCCCCC; }
+    .odd-box b { color: #00FF66; font-size: 1.05em; }
+    
+    .section-title { font-size: 1.0em; font-weight: 600; color: #FFFFFF; margin-top: 15px; margin-bottom: 12px; }
     
     .opp-item { background-color: #1A1A1E; border: 1px solid #2C2C32; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
     .opp-title { font-weight: 600; font-size: 0.95em; color: #FFFFFF; display: flex; align-items: center; gap: 10px; }
@@ -41,7 +55,7 @@ st.markdown(
     
     .opp-odd { background-color: #26262C; color: #FFFFFF; font-weight: bold; padding: 4px 10px; border-radius: 6px; font-size: 0.9em; border: 1px solid #3A3A42; }
     
-    .why-box { background-color: #121215; border-left: 3px solid #0066FF; padding: 12px 16px; border-radius: 4px; margin-top: 10px; margin-bottom: 15px; font-size: 0.88em; color: #CCCCCC; line-height: 1.5; }
+    .why-box { background-color: #121215; border-left: 3px solid #0066FF; padding: 12px 16px; border-radius: 4px; margin-top: 10px; margin-bottom: 15px; font-size: 0.88em; color: #CCCCCC; line-height: 1.6; }
     .why-title { color: #FFFFFF; font-weight: bold; font-size: 0.95em; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
     
     .disclaimer-box { font-size: 0.76em; color: #7C7C82; margin-top: 20px; border-top: 1px solid #26262C; padding-top: 12px; line-height: 1.4; }
@@ -53,7 +67,7 @@ st.markdown(
 API_FOOTBALL_KEY = st.secrets.get("API_FOOTBALL_KEY", "0d03200b5ee68704d96a72a1749aeca3")
 LICENCAS_VALIDAS = ["PRO-FUTEBOL-2026", "VIP-ANALISTA-888", "CLIENTE-PRO-01", "ADMIN-MASTER-99"]
 
-# Autenticação
+# Login
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
@@ -86,6 +100,7 @@ opcao_filtro = st.radio(
     options=["🌟 Todos os Próximos Jogos", "🔴 Jogos de Hoje (Restantes)", "🟡 Jogos de Amanhã"],
     horizontal=True,
 )
+
 btn_buscar = st.button("🔍 GERAR PROGNÓSTICOS E OPORTUNIDADES", use_container_width=True)
 
 
@@ -107,12 +122,12 @@ def calcular_poisson(lambda_gols, k):
 
 
 def obter_badge_confianca(score):
-    if score >= 78:
-        return "<span class='badge-alta'>🟢 ALTA CONFIANÇA</span>", "Alta Confiança"
-    elif score >= 62:
-        return "<span class='badge-media'>🟡 MÉDIA CONFIANÇA</span>", "Média Confiança"
+    if score >= 75:
+        return "<span class='badge-alta'>🟢 ALTA CONFIANÇA</span>"
+    elif score >= 60:
+        return "<span class='badge-media'>🟡 MÉDIA CONFIANÇA</span>"
     else:
-        return "<span class='badge-baixa'>🔴 BAIXA CONFIANÇA</span>", "Baixa Confiança"
+        return "<span class='badge-baixa'>🔴 BAIXA CONFIANÇA</span>"
 
 
 def analisar_oportunidades_partida(fixture):
@@ -127,7 +142,7 @@ def analisar_oportunidades_partida(fixture):
     stat_home = api_get("teams/statistics", {"league": league_id, "season": season, "team": home_id})
     stat_away = api_get("teams/statistics", {"league": league_id, "season": season, "team": away_id})
 
-    # Dados Estatísticos
+    # Estatísticas Detalhadas
     g_home_scored = 1.85
     g_home_conceded = 1.10
     g_away_scored = 1.20
@@ -153,7 +168,7 @@ def analisar_oportunidades_partida(fixture):
             loses_a = sa.get("fixtures", {}).get("loses", {}).get("away", 0) or 0
             win_rate_away_loss = int((loses_a / played_a) * 100) if played_a > 0 else 50
 
-    # Modelagem Matemática
+    # Modelo Poisson
     lambda_home = (g_home_scored + g_away_conceded) / 2.0
     lambda_away = (g_away_scored + g_home_conceded) / 2.0
 
@@ -171,15 +186,18 @@ def analisar_oportunidades_partida(fixture):
             if (h + a) > 2.5: prob_over25 += p
             if h > 0 and a > 0: prob_btts += p
 
-    # Odds
+    # Busca Odds Bet365 Real / Match Odds
     odds_raw = api_get("odds", {"fixture": fixture_id, "bookmaker": "8"})
-    odd_h, odd_o25, odd_btts = 0.0, 0.0, 0.0
+    odd_h, odd_d, odd_a = 0.0, 0.0, 0.0
+    odd_o25, odd_btts = 0.0, 0.0
 
     if odds_raw and len(odds_raw) > 0 and "bookmakers" in odds_raw[0]:
         for bet in odds_raw[0]["bookmakers"][0].get("bets", []):
             if bet["id"] == 1:
                 for v in bet["values"]:
                     if v["value"] == "Home": odd_h = float(v["odd"])
+                    elif v["value"] == "Draw": odd_d = float(v["odd"])
+                    elif v["value"] == "Away": odd_a = float(v["odd"])
             elif bet["id"] == 5:
                 for v in bet["values"]:
                     if v["value"] == "Over 2.5": odd_o25 = float(v["odd"])
@@ -187,7 +205,9 @@ def analisar_oportunidades_partida(fixture):
                 for v in bet["values"]:
                     if v["value"] == "Yes": odd_btts = float(v["odd"])
 
-    if odd_h == 0.0: odd_h = max(1.30, round(1.0 / max(0.20, prob_home), 2))
+    if odd_h == 0.0: odd_h = max(1.25, round(1.0 / max(0.15, prob_home), 2))
+    if odd_d == 0.0: odd_d = max(2.80, round(1.0 / max(0.15, prob_draw), 2))
+    if odd_a == 0.0: odd_a = max(1.50, round(1.0 / max(0.15, prob_away), 2))
     if odd_o25 == 0.0: odd_o25 = max(1.40, round(1.0 / max(0.20, prob_over25), 2))
     if odd_btts == 0.0: odd_btts = max(1.45, round(1.0 / max(0.20, prob_btts), 2))
     odd_corners = 1.75
@@ -198,65 +218,76 @@ def analisar_oportunidades_partida(fixture):
     total_escanteios_esp = round(escanteios_esp_home + escanteios_esp_away, 1)
     linha_cantos = "Mais de 8.5 escanteios" if total_escanteios_esp < 10.5 else "Mais de 9.5 escanteios"
 
-    # Scores
-    score_home = min(98, max(50, int((prob_home * 100 * 0.6) + (win_rate_home * 0.4))))
+    # Confiança Scores
+    score_home = min(98, max(45, int((prob_home * 100 * 0.6) + (win_rate_home * 0.4))))
     score_gols = min(98, max(50, int((prob_over25 * 100 * 0.65) + ((lambda_home + lambda_away) * 10))))
     score_btts = min(98, max(45, int((prob_btts * 100 * 0.65) + (g_away_scored * 12))))
     score_corners = min(95, max(55, int((total_escanteios_esp * 7.5))))
 
-    badge_h, _ = obter_badge_confianca(score_home)
-    badge_g, _ = obter_badge_confianca(score_gols)
-    badge_b, _ = obter_badge_confianca(score_btts)
-    badge_c, _ = obter_badge_confianca(score_corners)
-
     oportunidades = [
         {
+            "match": f"{home_name} x {away_name}",
             "titulo": f"Vitória do {home_name} (casa)",
-            "badge": badge_h,
+            "score": score_home,
+            "val_odd": odd_h,
+            "badge": obter_badge_confianca(score_home),
             "odd": f"Odd {odd_h:.2f}",
-            "explicacao": f"O {home_name} venceu {win_rate_home}% dos seus jogos em casa, marcando em média {g_home_scored:.2f} gols e sofrendo {g_home_conceded:.2f}. O {away_name} foi derrotado em {win_rate_away_loss}% das partidas como visitante e cede {g_away_conceded:.2f} gols em média."
+            "explicacao": f"O {home_name} apresenta taxa de aproveitamento de {win_rate_home}% atuando como mandante, anotando média de {g_home_scored:.2f} gols por partida e sofrendo apenas {g_home_conceded:.2f}. Em contrapartida, o {away_name} apresenta vulnerabilidade defensiva fora de casa (cede {g_away_conceded:.2f} gols em média) com {win_rate_away_loss}% de derrotas nos jogos como visitante. O modelo de probabilidade Poisson indica {prob_home * 100:.1f}% de probabilidade para a vitória da casa."
         },
         {
+            "match": f"{home_name} x {away_name}",
             "titulo": "Mais de 2.5 gols",
-            "badge": badge_g,
+            "score": score_gols,
+            "val_odd": odd_o25,
+            "badge": obter_badge_confianca(score_gols),
             "odd": f"Odd {odd_o25:.2f}",
-            "explicacao": f"A média ofensiva do {home_name} em casa ({g_home_scored:.2f}) combinada com a fragilidade defensiva do {away_name} como visitante ({g_away_conceded:.2f}) projeta uma expectativa total de {lambda_home + lambda_away:.2f} gols no confronto."
+            "explicacao": f"O volume ofensivo do {home_name} em seus domínios ({g_home_scored:.2f} gols/jogo) combinado com a média defensiva do {away_name} como visitante ({g_away_conceded:.2f} sofridos) aponta para um jogo aberto. A expectativa quantitativa combinada é de {lambda_home + lambda_away:.2f} gols no confronto, cobrindo com margem estatística a linha de 2.5 gols."
         },
         {
+            "match": f"{home_name} x {away_name}",
             "titulo": "Ambas marcam — SIM",
-            "badge": badge_b,
+            "score": score_btts,
+            "val_odd": odd_btts,
+            "badge": obter_badge_confianca(score_btts),
             "odd": f"Odd {odd_btts:.2f}",
-            "explicacao": f"O {away_name} mantém regularidade no ataque atuando fora ({g_away_scored:.2f} gols/jogo), enquanto o {home_name} concede oportunidades defensivas ({g_home_conceded:.2f} sofridos). Probabilidade Poisson: {prob_btts * 100:.1f}%."
+            "explicacao": f"O {away_name} mantém consistência de gols marcados fora de casa ({g_away_scored:.2f} por jogo), enquanto a defesa do {home_name} concede espaços regularly ({g_home_conceded:.2f} gols sofridos em casa). A matriz bivariada projeta {prob_btts * 100:.1f}% de chance de ambas as equipes balançarem as redes."
         },
         {
+            "match": f"{home_name} x {away_name}",
             "titulo": linha_cantos,
-            "badge": badge_c,
+            "score": score_corners,
+            "val_odd": odd_corners,
+            "badge": obter_badge_confianca(score_corners),
             "odd": f"Odd {odd_corners:.2f}",
-            "explicacao": f"Volume projetado de cantos: {home_name} produz em média {escanteios_esp_home} escanteios e o {away_name} gera {escanteios_esp_away}, acumulando uma expectativa combinada de {total_escanteios_esp} tiros de canto."
+            "explicacao": f"Métricas de pressão lateral: O {home_name} registra média de {escanteios_esp_home} escanteios a favor jogando em casa e o {away_name} produz cerca de {escanteios_esp_away} escanteios como visitante, projetando um volume total de {total_escanteios_esp} escanteios na partida."
         }
     ]
 
-    return oportunidades
+    return oportunidades, {"odd_h": odd_h, "odd_d": odd_d, "odd_a": odd_a}
 
 
-# --- RENDERIZAÇÃO DAS ANÁLISES ---
-if btn_buscar:
-    with st.spinner("Analisando estatísticas e calculando probabilidades..."):
-        now_utc = datetime.now(timezone.utc)
+# --- RENDERIZAÇÃO PRINCIPAL ---
+if btn_buscar or "raw_fixtures" in st.session_state:
+    now_utc = datetime.now(timezone.utc)
 
+    if btn_buscar:
         data_str = None
         if "Hoje" in opcao_filtro:
             data_str = now_utc.strftime("%Y-%m-%d")
         elif "Amanhã" in opcao_filtro:
             data_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        params_fixture = {"date": data_str} if data_str else {"next": "40"}
-        raw_fixtures = api_get("fixtures", params_fixture)
+        params_fixture = {"date": data_str} if data_str else {"next": "100"}
+        st.session_state["raw_fixtures"] = api_get("fixtures", params_fixture)
+
+    raw_fixtures = st.session_state.get("raw_fixtures", [])
 
     if not raw_fixtures:
         st.warning("Nenhum jogo encontrado para o período selecionado.")
     else:
         partidas_validas = []
+        todas_entradas = []
+
         for item in raw_fixtures:
             fix = item["fixture"]
             dt_fix = datetime.fromisoformat(fix["date"].replace("Z", "+00:00"))
@@ -268,33 +299,113 @@ if btn_buscar:
         if not partidas_validas:
             st.info("⚠️ Não há partidas pendentes para o filtro selecionado.")
         else:
-            st.success(f"✅ {len(partidas_validas)} partidas analisadas com sucesso!")
+            # Extração de Ligas Únicas para o Filtro
+            ligas_disponiveis = sorted(list(set([f"{item['league']['country']} - {item['league']['name']}" for _, item in partidas_validas])))
+            ligas_opcoes = ["🌍 Todas as Ligas"] + ligas_disponiveis
 
-            jogos_processados = 0
+            st.write("")
+            col_filtro1, col_filtro2 = st.columns([2, 1])
+            with col_filtro1:
+                liga_selecionada = st.selectbox("📌 Filtrar jogos por Liga/Campeonato:", options=ligas_opcoes)
+
+            # Processamento de Dados das Partidas
+            partidas_filtradas = []
             for dt_fix, item in partidas_validas:
-                if jogos_processados >= 12:
-                    break
+                nome_liga = f"{item['league']['country']} - {item['league']['name']}"
+                opps, m_odds = analisar_oportunidades_partida(item)
+                todas_entradas.extend(opps)
+                
+                if liga_selecionada == "🌍 Todas as Ligas" or liga_selecionada == nome_liga:
+                    partidas_filtradas.append((dt_fix, item, opps, m_odds))
 
+            # --- RENDERIZAÇÃO DAS DUPLAS E MÚLTIPLA DO DIA ---
+            # Ordena entradas pelo maior Score estatístico
+            todas_entradas.sort(key=lambda x: x["score"], reverse=True)
+
+            if len(todas_entradas) >= 6:
+                d1_e1, d1_e2 = todas_entradas[0], todas_entradas[1]
+                d2_e1, d2_e2 = todas_entradas[2], todas_entradas[3]
+                m_e1, m_e2, m_e3 = todas_entradas[0], todas_entradas[2], todas_entradas[4]
+
+                odd_d1 = d1_e1["val_odd"] * d1_e2["val_odd"]
+                odd_d2 = d2_e1["val_odd"] * d2_e2["val_odd"]
+                odd_mult = m_e1["val_odd"] * m_e2["val_odd"] * m_e3["val_odd"]
+
+                st.markdown(
+                    """
+                <div class="combo-container">
+                    <div class="combo-title">🚀 COMBINAÇÕES E MÚLTIPLAS DO DIA (ALTA CONFIANÇA)</div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
+                c1, c2, c3 = st.columns(3)
+
+                with c1:
+                    st.markdown(
+                        f"""
+                    <div class="combo-card">
+                        <div class="combo-header"><span>🟢 DUPLA DO DIA #1</span> <span>@ {odd_d1:.2f}</span></div>
+                        <div class="combo-item">📌 <b>{d1_e1['match']}</b><br>{d1_e1['titulo']} (@{d1_e1['val_odd']:.2f})</div>
+                        <div class="combo-item">📌 <b>{d1_e2['match']}</b><br>{d1_e2['titulo']} (@{d1_e2['val_odd']:.2f})</div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                with c2:
+                    st.markdown(
+                        f"""
+                    <div class="combo-card">
+                        <div class="combo-header"><span>🟢 DUPLA DO DIA #2</span> <span>@ {odd_d2:.2f}</span></div>
+                        <div class="combo-item">📌 <b>{d2_e1['match']}</b><br>{d2_e1['titulo']} (@{d2_e1['val_odd']:.2f})</div>
+                        <div class="combo-item">📌 <b>{d2_e2['match']}</b><br>{d2_e2['titulo']} (@{d2_e2['val_odd']:.2f})</div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                with c3:
+                    st.markdown(
+                        f"""
+                    <div class="combo-card">
+                        <div class="combo-header"><span style="color:#FFCC00;">🔥 MÚLTIPLA PRO (TRIPLA)</span> <span style="color:#FFCC00;">@ {odd_mult:.2f}</span></div>
+                        <div class="combo-item">📌 <b>{m_e1['match']}</b><br>{m_e1['titulo']} (@{m_e1['val_odd']:.2f})</div>
+                        <div class="combo-item">📌 <b>{m_e2['match']}</b><br>{m_e2['titulo']} (@{m_e2['val_odd']:.2f})</div>
+                        <div class="combo-item">📌 <b>{m_e3['match']}</b><br>{m_e3['titulo']} (@{m_e3['val_odd']:.2f})</div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.success(f"✅ {len(partidas_validas)} partidas analisadas no total! (Exibindo {len(partidas_filtradas)} para a seleção atual)")
+
+            # Renderização dos Cards Individuais por Jogo
+            for dt_fix, item, opps, match_odds in partidas_filtradas[:50]:
                 league = item["league"]
                 teams = item["teams"]
                 dt_br = dt_fix - timedelta(hours=3)
 
-                opps = analisar_oportunidades_partida(item)
-                jogos_processados += 1
-
-                # Bloco do Jogo
                 st.markdown(
                     f"""
                 <div class="match-card">
                     <div class="match-header">⚽ {teams['home']['name']}  x  {teams['away']['name']}</div>
                     <div class="league-header">🏆 {league['country']} — {league['name']} | 📅 {dt_br.strftime('%d/%m às %H:%M')}</div>
                     
-                    <div class="section-label">🎯 Oportunidades Identificadas</div>
+                    <div class="match-odds-bar">
+                        <div class="odd-box">Mandante (1): <b>@{match_odds['odd_h']:.2f}</b></div>
+                        <div class="odd-box">Empate (X): <b>@{match_odds['odd_d']:.2f}</b></div>
+                        <div class="odd-box">Visitante (2): <b>@{match_odds['odd_a']:.2f}</b></div>
+                    </div>
+
+                    <div class="section-title">🎯 Oportunidades Identificadas</div>
                 """,
                     unsafe_allow_html=True,
                 )
 
-                # Linhas com Badges de Confiança
+                # Oportunidades
                 for opp in opps:
                     st.markdown(
                         f"""
@@ -309,8 +420,8 @@ if btn_buscar:
                         unsafe_allow_html=True,
                     )
 
-                # Explicações detalhadas
-                st.markdown("<div class='section-label' style='margin-top:20px;'>📝 Por que o modelo identificou estas entradas?</div>", unsafe_allow_html=True)
+                # Explicações
+                st.markdown("<div class='section-title' style='margin-top:20px;'>📝 Por que o modelo identificou estas entradas?</div>", unsafe_allow_html=True)
 
                 for opp in opps:
                     st.markdown(
@@ -326,11 +437,11 @@ if btn_buscar:
                         unsafe_allow_html=True,
                     )
 
-                # Aviso Legal / Disclaimer ao Final da Análise
+                # Disclaimer +18 Anos
                 st.markdown(
                     """
                     <div class="disclaimer-box">
-                        ⚠️ <b>Aviso de Gestão de Risco:</b> As projeções exibidas são geradas por algoritmos probabilísticos quantitativos e dados estatísticos históricos. Operações no mercado esportivo envolvem variação e risco financeiro. Não há garantia de retornos. A responsabilidade final pela gestão de banca e tomada de decisão é exclusivamente do operador.
+                        🔞 <b>+18 | APOSTE COM RESPONSABILIDADE:</b> Todas as projeções e probabilidades são fruto de algoritmos de análise quantitativa estatística. Nenhuma informação contida neste painel garante lucro ou retorno financeiro. Operações em apostas esportivas envolvem riscos de perda. A decisão e a gestão de banca são de inteira responsabilidade do usuário.
                     </div>
                 </div>
                 """,
