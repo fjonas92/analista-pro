@@ -392,7 +392,7 @@ def renderizar_card_jogo(item):
             """
             st.markdown(html_analise, unsafe_allow_html=True)
 
-# 5. HEADER PRINCIPAL COM LOGO E ALTERNÂNCIA DE TEMA (SEM TÍTULOS E LETRINHAS PEQUENAS REDUNDANTES)
+# 5. HEADER PRINCIPAL COM LOGO E ALTERNÂNCIA DE TEMA
 col_h1, col_h2, col_h3 = st.columns([1, 2, 1])
 
 with col_h3:
@@ -465,60 +465,9 @@ if ligas_selecionadas_user:
 else:
     partidas_validas = partidas_brutas
 
-# 7. ESTRUTURA DE ABAS PRINCIPAIS
-aba1, aba2, aba3, aba4 = st.tabs([
-    "📊 Todos os Jogos",
-    "🏠 Mandantes Favoritos",
-    "✈️ Visitantes Favoritos",
-    "⚽ Melhores Jogos Over 1.5"
-])
-
-# ABA 1: TODOS OS JOGOS
-with aba1:
-    if not partidas_validas:
-        st.warning("⚠️ Nenhum jogo encontrado para a data selecionada.")
-    else:
-        for item in partidas_validas[:15]:
-            renderizar_card_jogo(item)
-
-# ABA 2: MANDANTES FAVORITOS (ODD 1 <= 1.50)
-with aba2:
-    jogos_mandante_fav = []
-    for item in partidas_validas:
-        odd_1, _, _, _, _, _ = buscar_odds_reais_api(item["fixture"]["id"])
-        if odd_1 <= 1.50:
-            jogos_mandante_fav.append(item)
-            
-    if not jogos_mandante_fav:
-        st.warning("⚠️ Nenhum jogo de mandante favorito (Odd <= 1.50) encontrado nesta seleção.")
-    else:
-        for item in jogos_mandante_fav[:15]:
-            renderizar_card_jogo(item)
-
-# ABA 3: VISITANTES FAVORITOS (ODD 2 <= 1.70)
-with aba3:
-    jogos_visitante_fav = []
-    for item in partidas_validas:
-        _, odd_2, _, _, _, _ = buscar_odds_reais_api(item["fixture"]["id"])
-        if odd_2 <= 1.70:
-            jogos_visitante_fav.append(item)
-            
-    if not jogos_visitante_fav:
-        st.warning("⚠️ Nenhum jogo de visitante favorito (Odd <= 1.70) encontrado nesta seleção.")
-    else:
-        for item in jogos_visitante_fav[:15]:
-            renderizar_card_jogo(item)
-
-# ABA 4: MELHORES JOGOS OVER 1.5 GOLS (ODD OVER 1.5 <= 1.30)
-with aba4:
-    jogos_over15_fav = []
-    for item in partidas_validas:
-        _, _, odd_over15, _, _, _ = buscar_odds_reais_api(item["fixture"]["id"])
-        if odd_over15 <= 1.30:
-            jogos_over15_fav.append(item)
-            
-    if not jogos_over15_fav:
-        st.warning("⚠️ Nenhum jogo de Over 1.5 gols (Odd <= 1.30) encontrado nesta seleção.")
-    else:
-        for item in jogos_over15_fav[:15]:
-            renderizar_card_jogo(item)
+# 7. EXIBIÇÃO DIRETA DAS PARTIDAS (SEM ABAS)
+if not partidas_validas:
+    st.warning("⚠️ Nenhum jogo encontrado para a data selecionada.")
+else:
+    for item in partidas_validas[:15]:
+        renderizar_card_jogo(item)
