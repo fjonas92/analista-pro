@@ -22,50 +22,59 @@ def normalizar_texto(texto):
     nfkd = unicodedata.normalize('NFD', texto)
     return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().strip()
 
-# MAPA ESTRITO DE LIGAS COM VARIAÇÕES
+# MAPA ESTRITO DE LIGAS COM CHAVES PAÍS + NOME DA LIGA
 LIGAS_MAPA = {
-    "Brasileirão Série A": ["serie a", "brasileirao"],
-    "Brasileirão Série B": ["serie b"],
-    "Brasileirão Série C": ["serie c"],
-    "Brasileirão Série D": ["serie d"],
-    "Copa do Brasil": ["copa do brasil"],
-    "Supercopa do Brasil": ["supercopa do brasil"],
-    "Copa do Nordeste": ["copa do nordeste"],
-    "Brasileiro Feminino": ["women", "feminino"],
-    "Campeonato Paulista": ["paulista"],
-    "Campeonato Carioca": ["carioca"],
-    "Campeonato Mineiro": ["mineiro"],
-    "Campeonato Gaúcho": ["gaucho"],
-    "Campeonato Paranaense": ["paranaense"],
-    "Campeonato Catarinense": ["catarinense"],
-    "Campeonato Baiano": ["baiano"],
-    "Campeonato Pernambucano": ["pernambucano"],
-    "Campeonato Cearense": ["cearense"],
-    "Campeonato Goiano": ["goiano"],
-    "Copa Libertadores": ["libertadores"],
-    "Copa Sudamericana": ["sudamericana"],
-    "Recopa Sudamericana": ["recopa"],
-    "Argentina Primera División": ["liga profesional", "primera division - argentina"],
-    "Copa Argentina": ["copa argentina"],
-    "Chile Primera División": ["primera division - chile"],
-    "Colombia Primera A": ["primera a"],
-    "Uruguay Primera División": ["primera division - uruguay"],
-    "Premier League": ["premier league"],
-    "Championship": ["championship"],
-    "FA Cup": ["fa cup"],
-    "LaLiga": ["laliga", "liga bbva"],
-    "Copa del Rey": ["copa del rey"],
-    "Serie A (Itália)": ["serie a"],
-    "Coppa Italia": ["coppa italia"],
-    "Bundesliga": ["bundesliga"],
-    "Ligue 1": ["ligue 1"],
-    "Primeira Liga (Portugal)": ["primeira liga", "liga portugal"],
-    "Eredivisie": ["eredivisie"],
-    "UEFA Champions League": ["champions league"],
-    "UEFA Europa League": ["europa league"],
-    "UEFA Conference League": ["conference league"],
-    "MLS": ["major league soccer", "mls"],
-    "Saudi Pro League": ["pro league - saudi"]
+    # Brasil (Com indicação de país para não confundir com Itália)
+    "Brasileirão Série A": [{"pais": "brazil", "kw": "serie a"}, {"pais": "brazil", "kw": "brasileirao"}],
+    "Brasileirão Série B": [{"pais": "brazil", "kw": "serie b"}],
+    "Brasileirão Série C": [{"pais": "brazil", "kw": "serie c"}],
+    "Brasileirão Série D": [{"pais": "brazil", "kw": "serie d"}],
+    "Copa do Brasil": [{"pais": "brazil", "kw": "copa do brasil"}],
+    "Supercopa do Brasil": [{"pais": "brazil", "kw": "supercopa"}],
+    "Copa do Nordeste": [{"pais": "brazil", "kw": "nordeste"}],
+    "Brasileiro Feminino": [{"pais": "brazil", "kw": "women"}],
+    "Campeonato Paulista": [{"pais": "brazil", "kw": "paulista"}],
+    "Campeonato Carioca": [{"pais": "brazil", "kw": "carioca"}],
+    "Campeonato Mineiro": [{"pais": "brazil", "kw": "mineiro"}],
+    "Campeonato Gaúcho": [{"pais": "brazil", "kw": "gaucho"}],
+    "Campeonato Paranaense": [{"pais": "brazil", "kw": "paranaense"}],
+    "Campeonato Catarinense": [{"pais": "brazil", "kw": "catarinense"}],
+    "Campeonato Baiano": [{"pais": "brazil", "kw": "baiano"}],
+    "Campeonato Pernambucano": [{"pais": "brazil", "kw": "pernambucano"}],
+    "Campeonato Cearense": [{"pais": "brazil", "kw": "cearense"}],
+    "Campeonato Goiano": [{"pais": "brazil", "kw": "goiano"}],
+
+    # América do Sul
+    "Copa Libertadores": [{"pais": "world", "kw": "libertadores"}, {"pais": "south america", "kw": "libertadores"}],
+    "Copa Sudamericana": [{"pais": "world", "kw": "sudamericana"}, {"pais": "south america", "kw": "sudamericana"}],
+    "Recopa Sudamericana": [{"pais": "world", "kw": "recopa"}],
+    "Argentina Primera División": [{"pais": "argentina", "kw": "primera division"}, {"pais": "argentina", "kw": "liga profesional"}],
+    "Copa Argentina": [{"pais": "argentina", "kw": "copa argentina"}],
+    "Chile Primera División": [{"pais": "chile", "kw": "primera division"}],
+    "Colombia Primera A": [{"pais": "colombia", "kw": "primera a"}],
+    "Uruguay Primera División": [{"pais": "uruguay", "kw": "primera division"}],
+
+    # Europa
+    "Premier League": [{"pais": "england", "kw": "premier league"}],
+    "Championship": [{"pais": "england", "kw": "championship"}],
+    "FA Cup": [{"pais": "england", "kw": "fa cup"}],
+    "LaLiga": [{"pais": "spain", "kw": "laliga"}, {"pais": "spain", "kw": "liga bbva"}],
+    "Copa del Rey": [{"pais": "spain", "kw": "copa del rey"}],
+    "Serie A (Itália)": [{"pais": "italy", "kw": "serie a"}],
+    "Coppa Italia": [{"pais": "italy", "kw": "coppa italia"}],
+    "Bundesliga": [{"pais": "germany", "kw": "bundesliga"}],
+    "Ligue 1": [{"pais": "france", "kw": "ligue 1"}],
+    "Primeira Liga (Portugal)": [{"pais": "portugal", "kw": "primeira liga"}, {"pais": "portugal", "kw": "liga portugal"}],
+    "Eredivisie": [{"pais": "netherlands", "kw": "eredivisie"}],
+
+    # UEFA
+    "UEFA Champions League": [{"pais": "world", "kw": "champions league"}],
+    "UEFA Europa League": [{"pais": "world", "kw": "europa league"}],
+    "UEFA Conference League": [{"pais": "world", "kw": "conference league"}],
+
+    # Outros
+    "MLS": [{"pais": "usa", "kw": "major league soccer"}, {"pais": "usa", "kw": "mls"}],
+    "Saudi Pro League": [{"pais": "saudi arabia", "kw": "pro league"}]
 }
 
 # 2. AUTENTICAÇÃO
@@ -83,7 +92,7 @@ if not st.session_state["autenticado"]:
             st.error("Chave de acesso inválida.")
     st.stop()
 
-# 3. ESTILIZAÇÃO CSS
+# 3. ESTILIZAÇÃO CSS (OCULTA A TOOLBAR DO STREAMLIT E GITHUB)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -184,13 +193,10 @@ def buscar_odds_bet365(fixture_id):
                             if val["value"] == "Over 8.5": odd_corners = float(val["odd"])
     return odd_1, odd_over25, odd_btts, odd_corners
 
-# FUNÇÃO PARA GERAR PALPITES DINÂMICOS E EXCLUSIVOS POR JOGO
 def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, odd_btts, odd_corners):
-    # Gera uma semente determinística baseada no ID do jogo
     seed = fixture_id % 7
 
     opcoes_mercados = [
-        # Opção 0
         [
             {"titulo": f"Vitória do {home_name} (casa)", "odd": odd_1 or 1.80, "conf": "Alta", "pct": 82, "tipo": "alta",
              "just": f"**Vitória do {home_name} (casa) — Alta Confiança:** O {home_name} venceu 4 dos últimos 5 jogos em casa, mantendo média superior a 1.9 gols marcados."},
@@ -201,7 +207,6 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
             {"titulo": "Mais de 8.5 escanteios", "odd": odd_corners or 1.45, "conf": "Baixa", "pct": 54, "tipo": "baixa",
              "just": f"**Mais de 8.5 escanteios — Baixa Confiança:** As médias das equipes indicam um jogo moderado em tiros de canto."}
         ],
-        # Opção 1
         [
             {"titulo": f"Empate ou {away_name} (Dupla Hipótese)", "odd": 1.62, "conf": "Alta", "pct": 84, "tipo": "alta",
              "just": f"**Empate ou {away_name} — Alta Confiança:** O {away_name} não perdeu nenhuma das suas últimas 4 partidas como visitante."},
@@ -212,7 +217,6 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
             {"titulo": "Menos de 10.5 escanteios", "odd": 1.55, "conf": "Baixa", "pct": 51, "tipo": "baixa",
              "just": f"**Menos de 10.5 escanteios — Baixa Confiança:** Ambas as equipes possuem baixo índice de chutes bloqueados à linha de fundo."}
         ],
-        # Opção 2
         [
             {"titulo": "Menos de 2.5 gols", "odd": 1.95, "conf": "Alta", "pct": 78, "tipo": "alta",
              "just": f"**Menos de 2.5 gols — Alta Confiança:** O {home_name} possui uma defesa sólida que sofreu apenas 2 gols nos últimos 6 confrontos."},
@@ -223,7 +227,6 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
             {"titulo": "Mais de 9.5 escanteios", "odd": 1.80, "conf": "Baixa", "pct": 53, "tipo": "baixa",
              "just": f"**Mais de 9.5 escanteios — Baixa Confiança:** Projeção baseada em partidas em que o {home_name} precisa pressionar desde os minutos iniciais."}
         ],
-        # Opção 3
         [
             {"titulo": f"Vitória do {home_name} (casa)", "odd": odd_1 or 2.10, "conf": "Alta", "pct": 76, "tipo": "alta",
              "just": f"**Vitória do {home_name} — Alta Confiança:** O retrospecto direto no estádio favorece amplamente o {home_name}."},
@@ -234,7 +237,6 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
             {"titulo": "Mais de 4.5 cartões", "odd": 1.75, "conf": "Baixa", "pct": 55, "tipo": "baixa",
              "just": f"**Mais de 4.5 cartões — Baixa Confiança:** Estilo de jogo faltoso das duas equipes costuma elevar a contagem de advertências."}
         ],
-        # Opção 4
         [
             {"titulo": f"Vitória do {away_name} (fora)", "odd": 2.20, "conf": "Alta", "pct": 77, "tipo": "alta",
              "just": f"**Vitória do {away_name} — Alta Confiança:** O {away_name} atravessa excelente fase com 3 vitórias consecutivas fora de seus domínios."},
@@ -245,7 +247,6 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
             {"titulo": "Mais de 9.5 escanteios", "odd": 1.70, "conf": "Baixa", "pct": 50, "tipo": "baixa",
              "just": f"**Mais de 9.5 escanteios — Baixa Confiança:** Depende diretamente de volume de cruzamentos na área no segundo tempo."}
         ],
-        # Opção 5
         [
             {"titulo": f"Vitória do {home_name} no 1º Tempo", "odd": 2.30, "conf": "Alta", "pct": 75, "tipo": "alta",
              "just": f"**Vitória do {home_name} no 1º Tempo — Alta Confiança:** O {home_name} marcou no primeiro tempo em 75% dos jogos da competição."},
@@ -256,7 +257,6 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
             {"titulo": "Mais de 8.5 escanteios", "odd": odd_corners or 1.40, "conf": "Baixa", "pct": 52, "tipo": "baixa",
              "just": f"**Mais de 8.5 escanteios — Baixa Confiança:** volume moderado nas laterais durante os confrontos recentes."}
         ],
-        # Opção 6
         [
             {"titulo": "Menos de 3.5 gols", "odd": 1.35, "conf": "Alta", "pct": 86, "tipo": "alta",
              "just": f"**Menos de 3.5 gols — Alta Confiança:** Perfil de partida truncada com pouca criação no meio-campo para ambos os lados."},
@@ -310,23 +310,30 @@ if btn_buscar or "analise_cache" not in st.session_state:
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
-# BUSCA FLEXÍVEL DE LIGAS COM NORMALIZAÇÃO DE ACENTOS
+# BUSCA PRECISA DE LIGAS (PAÍS + PALAVRA CHAVE)
 partidas_validas = []
-
-palavras_chave_permitidas = []
 ligas_alvo = ligas_selecionadas if ligas_selecionadas else list(LIGAS_MAPA.keys())
-
-for liga in ligas_alvo:
-    for kw in LIGAS_MAPA.get(liga, []):
-        palavras_chave_permitidas.append(normalizar_texto(kw))
 
 for item in raw_fixtures:
     if item["fixture"]["status"]["short"] in ["NS", "TBD"]:
         nome_liga_api = normalizar_texto(item["league"]["name"])
         pais_liga_api = normalizar_texto(item["league"]["country"])
-        texto_completo = f"{pais_liga_api} {nome_liga_api}"
 
-        if any(kw in texto_completo for kw in palavras_chave_permitidas):
+        match_encontrado = False
+        for liga_nome in ligas_alvo:
+            regras = LIGAS_MAPA.get(liga_nome, [])
+            for regra in regras:
+                pais_req = normalizar_texto(regra["pais"])
+                kw_req = normalizar_texto(regra["kw"])
+
+                # Valida se o país combina E se a palavra-chave está no nome da liga
+                if (pais_req in pais_liga_api or pais_req == "world") and (kw_req in nome_liga_api):
+                    match_encontrado = True
+                    break
+            if match_encontrado:
+                break
+
+        if match_encontrado:
             partidas_validas.append(item)
 
 if not partidas_validas:
@@ -340,7 +347,6 @@ else:
 
         odd_1, odd_over25, odd_btts, odd_corners = buscar_odds_bet365(fix["id"])
         
-        # OPORTUNIDADES CALCULADAS DINAMICAMENTE PARA ESTE JOGO
         oportunidades = gerar_analise_dinamica(
             fix["id"], home["name"], away["name"], odd_1, odd_over25, odd_btts, odd_corners
         )
