@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Estilização CSS e oculta elementos padrão do Streamlit
+# Estilização CSS personalizada
 st.markdown(
     """
     <style>
@@ -81,12 +81,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# API Key da The Odds API
+# API Key
 THE_ODDS_API_KEY = st.secrets.get(
     "THE_ODDS_API_KEY", "e484810f517d8e428f3cbf3e89e2973b"
 )
 
-# Chaves de acesso válidas
+# Licenças Válidas
 LICENCAS_VALIDAS = [
     "PRO-FUTEBOL-2026",
     "VIP-ANALISTA-888",
@@ -94,7 +94,7 @@ LICENCAS_VALIDAS = [
     "ADMIN-MASTER-99",
 ]
 
-# Ligas monitoradas
+# Ligas Monitoradas
 LIGAS_FUTEBOL = [
     "soccer_brazil_campeonato",
     "soccer_epl",
@@ -108,7 +108,7 @@ LIGAS_FUTEBOL = [
     "soccer_usa_mls",
 ]
 
-# Gerenciamento de Login
+# Login
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
@@ -135,23 +135,35 @@ if not st.session_state["autenticado"]:
                 st.error("❌ Chave de licença inválida ou expirada.")
 
         st.markdown("---")
-        st.info("💡 Adquira sua chave de acesso VIP para visualizar as análises.")
+        st.info("💡 Adquira sua chave VIP para acesso ilimitado.")
     st.stop()
 
-# --- INTERFACE PRINCIPAL ---
+# --- PAINEL PRINCIPAL ---
 st.markdown(
     "<div class='main-header'><h1>⚽ ANALISTA PRO</h1></div>",
     unsafe_allow_html=True,
 )
 
-btn_buscar = st.button("🔍 BUSCAR JOGOS FUTUROS (HOJE, AMANHÃ E PRÓXIMOS DIAS)", use_container_width=True)
+# Filtro por Data
+st.subheader("📅 SELECIONE O FILTRO DE DATA DE JOGOS:")
+opcao_filtro = st.radio(
+    "Filtrar partidas por período:",
+    options=[
+        "🌟 Todos os Próximos Jogos",
+        "🔴 Jogos de Hoje (Restantes)",
+        "🟡 Jogos de Amanhã",
+        "🔵 Jogos de Depois de Amanhã em Diante",
+    ],
+    horizontal=True,
+)
+
+btn_buscar = st.button("🔍 GERAR ANÁLISES COM O FILTRO SELECIONADO", use_container_width=True)
 
 
 def buscar_jogos_futuros():
     jogos_brutos = []
     ids_processados = set()
 
-    # Busca nas ligas específicas
     for liga_key in LIGAS_FUTEBOL:
         url = f"https://api.the-odds-api.com/v4/sports/{liga_key}/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
         try:
@@ -167,7 +179,6 @@ def buscar_jogos_futuros():
         except Exception:
             continue
 
-    # Caso as ligas específicas fiquem sem retorno, usa o endpoint genérico 'upcoming'
     if not jogos_brutos:
         url_fallback = f"https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
         try:
@@ -185,7 +196,7 @@ def buscar_jogos_futuros():
 
 
 if btn_buscar:
-    with st.spinner("Buscando partidas programadas que ainda NÃO começaram..."):
+    with st.spinner("Buscando partidas de acordo com o filtro selecionado..."):
         jogos_raw = buscar_jogos_futuros()
 
     if not jogos_raw:
@@ -193,6 +204,8 @@ if btn_buscar:
     else:
         jogos_processados = []
         agora_utc = datetime.now(timezone.utc)
+        hoje_local = (agora_utc - timedelta(hours=3)).date()
+        amanha_local = hoje_local + timedelta(days=1)
 
         for item in jogos_raw:
             data_raw = item.get("commence_time", "")
@@ -204,20 +217,25 @@ if btn_buscar:
                     tzinfo=timezone.utc
                 )
                 
-                # GARANTIA ABSOLUTA: Descarta qualquer jogo que já começou ou passou
+                # GARANTIA: Ignora partidas que já iniciaram
                 if dt_utc <= agora_utc:
                     continue
 
-                # Converte para o fuso horário de Brasília (UTC-3)
-                dt_local = dt_utc - timedelta(hours=3)
-                
-                # Define se é Hoje, Amanhã ou Outra Data
-                hoje_local = (agora_utc - timedelta(hours=3)).date()
+                dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
                 data_jogo = dt_local.date()
 
+                # --- APLICAÇÃO DO FILTRO SOLICITADO ---
+                if "Hoje" in opcao_filtro and data_jogo != hoje_local:
+                    continue
+                elif "Amanhã" in opcao_filtro and "Depois" not in opcao_filtro and data_jogo != amanha_local:
+                    continue
+                elif "Depois de Amanhã" in opcao_filtro and data_jogo <= amanha_local:
+                    continue
+
+                # Rótulo Visual de Data
                 if data_jogo == hoje_local:
                     rotulo_data = f"HOJE às {dt_local.strftime('%H:%M')}"
-                elif data_jogo == hoje_local + timedelta(days=1):
+                elif data_jogo == amanha_local:
                     rotulo_data = f"AMANHÃ às {dt_local.strftime('%H:%M')}"
                 else:
                     rotulo_data = dt_local.strftime("%d/%m às %H:%M")
@@ -314,13 +332,13 @@ if btn_buscar:
             }
             jogos_processados.append((info, analise))
 
-        # Ordena os jogos por data/hora de início (os mais próximos primeiro)
+        # Ordena cronologicamente
         jogos_processados.sort(key=lambda x: x[0]["dt_utc"])
 
         if not jogos_processados:
-            st.warning("Nenhum jogo pré-partida futuro encontrado no momento.")
+            st.warning(f"Nenhum jogo pré-partida encontrado para o filtro: '{opcao_filtro}'.")
         else:
-            st.success(f"✅ {len(jogos_processados)} jogos futuros encontrados e prontos para análise!")
+            st.success(f"✅ {len(jogos_processados)} partidas encontradas para '{opcao_filtro}'!")
 
             for info, analise in jogos_processados:
                 with st.container():
@@ -362,7 +380,7 @@ if btn_buscar:
                         )
                         st.write("")
 
-            # GERADOR DE BILHETES PRONTOS
+            # BILHETES PRONTOS
             if len(jogos_processados) >= 2:
                 st.markdown("---")
                 st.subheader("🔥 BILHETES PRONTOS RECOMENDADOS 🔥")
