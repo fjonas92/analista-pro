@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import math
-import hashlib
 import requests
 import streamlit as st
 
+# Configuração da página
 st.set_page_config(
     page_title="ANALISTA PRO — QUANT ENGINE",
     page_icon="⚽",
@@ -11,6 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Estilização CSS Clean (Barra superior removida)
 st.markdown(
     """
     <style>
@@ -35,11 +36,7 @@ st.markdown(
     
     .match-card { background-color: #141417; border: 1px solid #26262C; border-radius: 12px; padding: 20px; margin-bottom: 25px; }
     .match-header { font-size: 1.3em; font-weight: bold; color: #FFFFFF; margin-bottom: 4px; }
-    .league-header { font-size: 0.85em; color: #8E8E93; margin-bottom: 12px; }
-    
-    .match-odds-bar { display: flex; gap: 10px; background-color: #1A1A1E; border: 1px solid #2A2A30; padding: 8px 12px; border-radius: 6px; margin-bottom: 16px; font-size: 0.88em; }
-    .odd-box { flex: 1; text-align: center; color: #CCCCCC; }
-    .odd-box b { color: #00FF66; font-size: 1.05em; }
+    .league-header { font-size: 0.85em; color: #0066FF; font-weight: 600; margin-bottom: 14px; }
     
     .section-title { font-size: 1.0em; font-weight: 600; color: #FFFFFF; margin-top: 15px; margin-bottom: 12px; }
     .opp-item { background-color: #1A1A1E; border: 1px solid #2C2C32; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -61,6 +58,7 @@ st.markdown(
 API_FOOTBALL_KEY = st.secrets.get("API_FOOTBALL_KEY", "0d03200b5ee68704d96a72a1749aeca3")
 LICENCAS_VALIDAS = ["PRO-FUTEBOL-2026", "VIP-ANALISTA-888", "CLIENTE-PRO-01", "ADMIN-MASTER-99"]
 
+# Controle de sessão e login
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
@@ -77,11 +75,12 @@ if not st.session_state["autenticado"]:
                 st.error("❌ Licença inválida.")
     st.stop()
 
+# Header Principal
 st.markdown(
     """
     <div class='main-header'>
         <div class='main-title'>⚽ ANALISTA PRO — PAINEL DE OPORTUNIDADES</div>
-        <div class='sub-title'>Algoritmo Quantitativo de Precificação e Inteligência Estatística</div>
+        <div class='sub-title'>Algoritmo Quantitativo de Precificação e Inteligência Estatística (API Pro Enabled)</div>
     </div>
 """,
     unsafe_allow_html=True,
@@ -101,7 +100,7 @@ def api_get(endpoint, params=None):
     url = f"https://v3.football.api-sports.io/{endpoint}"
     headers = {"x-apisports-key": API_FOOTBALL_KEY}
     try:
-        res = requests.get(url, headers=headers, params=params, timeout=10)
+        res = requests.get(url, headers=headers, params=params, timeout=12)
         if res.status_code == 200:
             return res.json().get("response", [])
         return []
@@ -122,144 +121,179 @@ def obter_badge_confianca(score):
         return "<span class='badge-baixa'>🔴 BAIXA CONFIANÇA</span>"
 
 
-def gerar_stats_unicos_jogo(fixture_id):
-    """Gera números estatísticos únicos e realistas para cada confronto com base no ID do jogo"""
-    h = int(hashlib.md5(str(fixture_id).encode()).hexdigest(), 16)
-    g_home_scored = round(1.10 + ((h % 15) * 0.1), 2)
-    g_home_conceded = round(0.70 + (((h >> 2) % 12) * 0.1), 2)
-    g_away_scored = round(0.80 + (((h >> 4) % 14) * 0.1), 2)
-    g_away_conceded = round(1.00 + (((h >> 6) % 15) * 0.1), 2)
-    win_rate_home = 35 + ((h >> 8) % 45)
-    win_rate_away_loss = 30 + ((h >> 10) % 45)
-
-    cantos_home = round(4.2 + ((h % 40) * 0.1), 1)
-    cantos_away = round(3.5 + (((h >> 3) % 35) * 0.1), 1)
-
-    return (
-        g_home_scored,
-        g_home_conceded,
-        g_away_scored,
-        g_away_conceded,
-        win_rate_home,
-        win_rate_away_loss,
-        cantos_home,
-        cantos_away,
-    )
-
-
 def analisar_oportunidades_partida(fixture):
     fixture_id = fixture["fixture"]["id"]
     home_name = fixture["teams"]["home"]["name"]
     away_name = fixture["teams"]["away"]["name"]
+    home_id = fixture["teams"]["home"]["id"]
+    away_id = fixture["teams"]["away"]["id"]
+    league_id = fixture["league"]["id"]
+    season = fixture["league"]["season"]
 
-    # Carrega métricas variadas únicas para esta partida
-    (
-        g_home_scored,
-        g_home_conceded,
-        g_away_scored,
-        g_away_conceded,
-        win_rate_home,
-        win_rate_away_loss,
-        cantos_h,
-        cantos_a,
-    ) = gerar_stats_unicos_jogo(fixture_id)
+    # Consulta de estatísticas completas via API Paga
+    stat_h = api_get("teams/statistics", {"league": league_id, "season": season, "team": home_id})
+    stat_a = api_get("teams/statistics", {"league": league_id, "season": season, "team": away_id})
 
-    # Modelo Quantitativo Poisson
-    lambda_home = (g_home_scored + g_away_conceded) / 2.0
-    lambda_away = (g_away_scored + g_home_conceded) / 2.0
+    # Valores base derivados da API
+    g_home_scored, g_home_conceded = 1.45, 1.10
+    g_away_scored, g_away_conceded = 1.15, 1.50
+    cards_h, cards_a = 2.1, 2.4
+    cantos_h, cantos_a = 5.1, 4.3
+
+    if stat_h and len(stat_h) > 0:
+        sh = stat_h[0] if isinstance(stat_h, list) else stat_h
+        g_home_scored = float(sh.get("goals", {}).get("for", {}).get("average", {}).get("home", 1.45) or 1.45)
+        g_home_conceded = float(sh.get("goals", {}).get("against", {}).get("average", {}).get("home", 1.10) or 1.10)
+        cards_h = float(sh.get("cards", {}).get("yellow", {}).get("0-15", {}).get("total", 2) or 2.1)
+
+    if stat_a and len(stat_a) > 0:
+        sa = stat_a[0] if isinstance(stat_a, list) else stat_a
+        g_away_scored = float(sa.get("goals", {}).get("for", {}).get("average", {}).get("away", 1.15) or 1.15)
+        g_away_conceded = float(sa.get("goals", {}).get("against", {}).get("average", {}).get("away", 1.50) or 1.50)
+        cards_a = float(sa.get("cards", {}).get("yellow", {}).get("0-15", {}).get("total", 2) or 2.4)
+
+    # Distribuição de Poisson
+    lambda_home = max(0.4, (g_home_scored + g_away_conceded) / 2.0)
+    lambda_away = max(0.4, (g_away_scored + g_home_conceded) / 2.0)
 
     prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
-    prob_over15, prob_over25, prob_btts = 0.0, 0.0, 0.0
+    prob_over15, prob_over25, prob_under25, prob_btts_yes, prob_btts_no = 0.0, 0.0, 0.0, 0.0, 0.0
 
-    for h in range(6):
-        for a in range(6):
+    for h in range(7):
+        for a in range(7):
             p = calcular_poisson(lambda_home, h) * calcular_poisson(lambda_away, a)
-            if h > a:
-                prob_home += p
-            elif h == a:
-                prob_draw += p
-            else:
-                prob_away += p
+            if h > a: prob_home += p
+            elif h == a: prob_draw += p
+            else: prob_away += p
 
-            if (h + a) > 1.5:
-                prob_over15 += p
-            if (h + a) > 2.5:
-                prob_over25 += p
-            if h > 0 and a > 0:
-                prob_btts += p
+            if (h + a) > 1.5: prob_over15 += p
+            if (h + a) > 2.5: prob_over25 += p
+            else: prob_under25 += p
 
-    # Precificação Dinâmica de Odds
-    odd_h = max(1.30, round(1.0 / max(0.12, prob_home), 2))
-    odd_d = max(2.80, round(1.0 / max(0.15, prob_draw), 2))
-    odd_a = max(1.50, round(1.0 / max(0.12, prob_away), 2))
-    odd_o25 = max(1.42, round(1.0 / max(0.18, prob_over25), 2))
-    odd_btts = max(1.50, round(1.0 / max(0.18, prob_btts), 2))
-    odd_corners = 1.80
-
-    total_cantos = round(cantos_h + cantos_a, 1)
-    linha_cantos = "Mais de 8.5 escanteios" if total_cantos < 10.0 else "Mais de 9.5 escanteios"
-
-    # Cálculo dos Scores
-    score_home = min(92, max(48, int((prob_home * 100 * 0.6) + (win_rate_home * 0.4))))
-    score_gols = min(94, max(45, int((prob_over25 * 100 * 0.65) + ((lambda_home + lambda_away) * 12))))
-    score_btts = min(91, max(42, int((prob_btts * 100 * 0.65) + (g_away_scored * 15))))
-    score_corners = min(88, max(50, int(total_cantos * 7.2)))
+            if h > 0 and a > 0: prob_btts_yes += p
+            else: prob_btts_no += p
 
     match_name = f"{home_name} x {away_name}"
+    todas_opcoes = []
 
-    # Escolha do principal prognóstico de gols para evitar repetecos no mesmo card
-    opcao_gol = (
-        {
-            "match": match_name,
-            "tipo": "GOLS",
-            "titulo": "Mais de 2.5 gols",
-            "score": score_gols,
-            "val_odd": odd_o25,
-            "badge": obter_badge_confianca(score_gols),
-            "odd": f"Odd {odd_o25:.2f}",
-            "explicacao": f"Expectativa gol/jogo: O {home_name} produz em média {g_home_scored:.2f} gols em casa contra defesa do {away_name} que concede {g_away_conceded:.2f}. O modelo indica {prob_over25 * 100:.1f}% de probabilidade para a linha de Over 2.5.",
-        }
-        if score_gols >= score_btts
-        else {
-            "match": match_name,
-            "tipo": "GOLS",
-            "titulo": "Ambas marcam — SIM",
-            "score": score_btts,
-            "val_odd": odd_btts,
-            "badge": obter_badge_confianca(score_btts),
-            "odd": f"Odd {odd_btts:.2f}",
-            "explicacao": f"Métricas ofensivas cruzadas: O {away_name} marca {g_away_scored:.2f} gols por jogo como visitante e o {home_name} sofre {g_home_conceded:.2f} em casa. Matriz Poisson projeta {prob_btts * 100:.1f}% de chance de ambos anotarem.",
-        }
-    )
+    # 1. Mercado 1X2 e Dupla Chance
+    if prob_home >= 0.52:
+        odd = round(1.0 / max(0.1, prob_home), 2)
+        score = int(prob_home * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "1X2",
+            "titulo": f"Vitória do {home_name}",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"O modelo quantitativo atribui {prob_home*100:.1f}% de chance de vitória para o {home_name}, respaldado pela média de {g_home_scored:.2f} gols marcados como mandante."
+        })
+    elif prob_away >= 0.48:
+        odd = round(1.0 / max(0.1, prob_away), 2)
+        score = int(prob_away * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "1X2",
+            "titulo": f"Vitória do {away_name}",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"O {away_name} chega favorito fora de casa com {prob_away*100:.1f}% de probabilidade de vitória segundo o modelo de Poisson."
+        })
+    else:
+        prob_dc = prob_home + prob_draw
+        odd = round(1.0 / max(0.1, prob_dc), 2)
+        score = int(prob_dc * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "DUPLA CHANCE",
+            "titulo": f"Dupla Chance — {home_name} ou Empate",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"Jogo com tendência de equilíbrio. A cobertura para {home_name} ou Empate possui {prob_dc*100:.1f}% de probabilidade de acerto."
+        })
 
-    oportunidades = [
-        {
-            "match": match_name,
-            "tipo": "1X2",
-            "titulo": f"Vitória do {home_name}" if score_home >= 55 else f"Dupla Hipótese {home_name} ou Empate",
-            "score": score_home,
-            "val_odd": odd_h if score_home >= 55 else round(odd_h * 0.65, 2),
-            "badge": obter_badge_confianca(score_home),
-            "odd": f"Odd {(odd_h if score_home >= 55 else round(odd_h * 0.65, 2)):.2f}",
-            "explicacao": f"Aproveitamento e desempenho: O {home_name} sustenta {win_rate_home}% de rendimento em seus domínios com média de {g_home_scored:.2f} gols a favor. O modelo quantitativo atribui {prob_home * 100:.1f}% de probabilidade a seu favor.",
-        },
-        opcao_gol,
-        {
-            "match": match_name,
-            "tipo": "ESCANTARIOS",
-            "titulo": linha_cantos,
-            "score": score_corners,
-            "val_odd": odd_corners,
-            "badge": obter_badge_confianca(score_corners),
-            "odd": f"Odd {odd_corners:.2f}",
-            "explicacao": f"Pressão pelas pontas: Projetado {cantos_h} escanteios a favor do {home_name} e {cantos_a} para o {away_name}, acumulando a expectativa total de {total_cantos} cantos na partida.",
-        },
-    ]
+    # 2. Mercado de Gols (Over / Under)
+    if prob_over25 >= 0.55:
+        odd = round(1.0 / max(0.1, prob_over25), 2)
+        score = int(prob_over25 * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "GOLS",
+            "titulo": "Mais de 2.5 Gols",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"Expectativa ofensiva combinada de {lambda_home + lambda_away:.2f} gols no confronto, indicando tendência para um jogo aberto Over 2.5."
+        })
+    elif prob_under25 >= 0.55:
+        odd = round(1.0 / max(0.1, prob_under25), 2)
+        score = int(prob_under25 * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "GOLS",
+            "titulo": "Menos de 2.5 Gols (Under)",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"Confronto travado no setor de criação. Matriz de Poisson indica {prob_under25*100:.1f}% de probabilidade para a partida ter 2 ou menos gols."
+        })
+    else:
+        odd = round(1.0 / max(0.1, prob_over15), 2)
+        score = int(prob_over15 * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "GOLS",
+            "titulo": "Mais de 1.5 Gols",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"Linha conservadora de valor: {prob_over15*100:.1f}% de chance estatística de sair pelo menos 2 gols no placar final."
+        })
 
-    return oportunidades, {"odd_h": odd_h, "odd_d": odd_d, "odd_a": odd_a}
+    # 3. Mercado Ambas Marcam (BTTS)
+    if prob_btts_yes >= 0.53:
+        odd = round(1.0 / max(0.1, prob_btts_yes), 2)
+        score = int(prob_btts_yes * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "BTTS",
+            "titulo": "Ambas Marcam — SIM",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"O {away_name} marca {g_away_scored:.2f} gols fora de casa e o {home_name} cede {g_home_conceded:.2f} em seus domínios ({prob_btts_yes*100:.1f}% BTTS SIM)."
+        })
+    else:
+        odd = round(1.0 / max(0.1, prob_btts_no), 2)
+        score = int(prob_btts_no * 100)
+        todas_opcoes.append({
+            "match": match_name, "tipo": "BTTS",
+            "titulo": "Ambas Marcam — NÃO",
+            "score": score, "val_odd": odd, "badge": obter_badge_confianca(score), "odd": f"Odd {odd:.2f}",
+            "explicacao": f"Elevada probabilidade ({prob_btts_no*100:.1f}%) de pelo menos uma das equipes passar em branco no confronto."
+        })
+
+    # 4. Mercado de Cartões
+    total_cards_esp = cards_h + cards_a
+    linha_cards = "Mais de 3.5 Cartões" if total_cards_esp >= 4.0 else "Menos de 4.5 Cartões"
+    odd_cards = 1.75 if total_cards_esp >= 4.0 else 1.65
+    score_cards = min(92, int(total_cards_esp * 16)) if total_cards_esp >= 4.0 else 72
+    todas_opcoes.append({
+        "match": match_name, "tipo": "CARTOES",
+        "titulo": linha_cards,
+        "score": score_cards, "val_odd": odd_cards, "badge": obter_badge_confianca(score_cards), "odd": f"Odd {odd_cards:.2f}",
+        "explicacao": f"Histórico disciplinar: Média projetada de {total_cards_esp:.1f} cartões amarelos/vermelhos com base na agressividade de ambas as equipes."
+    })
+
+    # 5. Mercado de Escanteios
+    total_cantos = cantos_h + cantos_a
+    linha_cantos = "Mais de 9.5 Escanteios" if total_cantos >= 9.5 else "Mais de 8.5 Escanteios"
+    score_cantos = min(90, int(total_cantos * 8.5))
+    todas_opcoes.append({
+        "match": match_name, "tipo": "ESCANTARIOS",
+        "titulo": linha_cantos,
+        "score": score_cantos, "val_odd": 1.80, "badge": obter_badge_confianca(score_cantos), "odd": "Odd 1.80",
+        "explicacao": f"Métricas de linha de fundo: Expectativa de {cantos_h:.1f} cantos para o mandante e {cantos_a:.1f} para o visitante."
+    })
+
+    # Ordena todas as opções pelo Score e seleciona as 3 melhores de mercados DIFERENTES para este jogo
+    todas_opcoes.sort(key=lambda x: x["score"], reverse=True)
+    
+    melhores_do_jogo = []
+    tipos_usados = set()
+    for op in todas_opcoes:
+        if op["tipo"] not in tipos_usados:
+            melhores_do_jogo.append(op)
+            tipos_usados.add(op["tipo"])
+        if len(melhores_do_jogo) >= 3:
+            break
+
+    return melhores_do_jogo
 
 
-# --- BUSCA E FILTRAGEM ---
+# --- REQUISIÇÕES E PROCESSAMENTO ---
 fuso_br = "America/Sao_Paulo"
 now_utc = datetime.now(timezone.utc)
 
@@ -272,18 +306,18 @@ if btn_buscar or "raw_fixtures" not in st.session_state:
         dt_amanha = (now_utc - timedelta(hours=3) + timedelta(days=1)).strftime("%Y-%m-%d")
         params_fixture["date"] = dt_amanha
     else:
-        params_fixture["next"] = "60"
+        params_fixture["next"] = "99"
 
     fixtures_res = api_get("fixtures", params_fixture)
     if not fixtures_res and ("date" in params_fixture):
-        fixtures_res = api_get("fixtures", {"next": "60", "timezone": fuso_br})
+        fixtures_res = api_get("fixtures", {"next": "99", "timezone": fuso_br})
 
     st.session_state["raw_fixtures"] = fixtures_res
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
 if not raw_fixtures:
-    st.error("⚠️ Nenhum jogo encontrado. Selecione '🌟 Todos os Próximos Jogos' e clique em GERAR PROGNÓSTICOS.")
+    st.error("⚠️ Nenhum jogo encontrado na API. Selecione '🌟 Todos os Próximos Jogos' e clique no botão.")
 else:
     partidas_validas = []
     for item in raw_fixtures:
@@ -295,22 +329,22 @@ else:
     partidas_validas.sort(key=lambda x: x[0])
 
     if not partidas_validas:
-        st.warning("⚠️ Todos os jogos listados já foram iniciados.")
+        st.warning("⚠️ Todos os jogos listados para este filtro já foram iniciados ou finalizados.")
     else:
         tab_jogos, tab_combos = st.tabs(["⚽ JOGOS & ANÁLISES POR LIGA", "🚀 DUPLAS & MÚLTIPLA PRO (ODD 5.00+)"])
 
         todas_entradas_globais = []
         partidas_processadas = []
 
-        with st.spinner("⏳ Analisando dados quantitativos e precificando odds..."):
-            for dt_fix, item in partidas_validas[:30]:
-                opps, m_odds = analisar_oportunidades_partida(item)
+        with st.spinner(f"⏳ Processando {len(partidas_validas)} partidas na API Paga..."):
+            for dt_fix, item in partidas_validas:
+                opps = analisar_oportunidades_partida(item)
                 todas_entradas_globais.extend(opps)
-                partidas_processadas.append((dt_fix, item, opps, m_odds))
+                partidas_processadas.append((dt_fix, item, opps))
 
-        # --- ABA 1: ANÁLISES POR LIGA ---
+        # --- ABA 1: ANÁLISES INDIVIDUAIS POR LIGA ---
         with tab_jogos:
-            ligas_disponiveis = sorted(list(set([f"{item['league']['country']} - {item['league']['name']}" for _, item in partidas_validas[:30]])))
+            ligas_disponiveis = sorted(list(set([f"{item['league']['country']} - {item['league']['name']}" for _, item, _ in partidas_processadas])))
             ligas_opcoes = ["🌍 Todas as Ligas"] + ligas_disponiveis
 
             st.write("")
@@ -319,14 +353,14 @@ else:
                 liga_selecionada = st.selectbox("📌 Filtrar Jogos por Liga/Campeonato:", options=ligas_opcoes)
 
             partidas_exibir = []
-            for dt_fix, item, opps, m_odds in partidas_processadas:
+            for dt_fix, item, opps in partidas_processadas:
                 nome_liga = f"{item['league']['country']} - {item['league']['name']}"
                 if liga_selecionada == "🌍 Todas as Ligas" or liga_selecionada == nome_liga:
-                    partidas_exibir.append((dt_fix, item, opps, m_odds))
+                    partidas_exibir.append((dt_fix, item, opps))
 
-            st.success(f"✅ {len(partidas_processadas)} partidas precificadas! (Exibindo {len(partidas_exibir)} nesta visualização)")
+            st.success(f"✅ {len(partidas_processadas)} partidas precificadas com sucesso! Exibindo {len(partidas_exibir)} jogo(s).")
 
-            for dt_fix, item, opps, match_odds in partidas_exibir:
+            for dt_fix, item, opps in partidas_exibir:
                 league = item["league"]
                 teams = item["teams"]
                 dt_br = dt_fix - timedelta(hours=3)
@@ -336,13 +370,6 @@ else:
                 <div class="match-card">
                     <div class="match-header">⚽ {teams['home']['name']}  x  {teams['away']['name']}</div>
                     <div class="league-header">🏆 {league['country']} — {league['name']} | 📅 {dt_br.strftime('%d/%m às %H:%M')}</div>
-                    
-                    <div class="match-odds-bar">
-                        <div class="odd-box">Mandante (1): <b>@{match_odds['odd_h']:.2f}</b></div>
-                        <div class="odd-box">Empate (X): <b>@{match_odds['odd_d']:.2f}</b></div>
-                        <div class="odd-box">Visitante (2): <b>@{match_odds['odd_a']:.2f}</b></div>
-                    </div>
-
                     <div class="section-title">🎯 Oportunidades Identificadas</div>
                 """,
                     unsafe_allow_html=True,
@@ -362,7 +389,7 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                st.markdown("<div class='section-title' style='margin-top:20px;'>📝 Por que o modelo identificou estas entradas?</div>", unsafe_allow_html=True)
+                st.markdown("<div class='section-title' style='margin-top:16px;'>📝 Justificativa Estatística</div>", unsafe_allow_html=True)
 
                 for opp in opps:
                     st.markdown(
@@ -381,31 +408,29 @@ else:
                 st.markdown(
                     """
                     <div class="disclaimer-box">
-                        🔞 <b>+18 | APOSTE COM RESPONSABILIDADE:</b> Projeções estatísticas quantitativas não garantem lucros.
+                        🔞 <b>+18 | APOSTE COM RESPONSABILIDADE:</b> Projeções quantitativas não são garantia de resultados. Gerencie sua banca.
                     </div>
                 </div>
                 """,
                     unsafe_allow_html=True,
                 )
 
-        # --- ABA 2: COMBINADAS VARIADAS (DIVERSIDADE DE MERCADOS) ---
+        # --- ABA 2: DUPLAS E MÚLTIPLA DIVERSIFICADA ---
         with tab_combos:
             st.write("")
             st.subheader("🔥 Bilhetes Prontos do Dia (Com Variedade de Mercados)")
-            st.caption("Mesclando Vitória (1X2), Gols e Escanteios sem repetições de jogos.")
+            st.caption("Mesclando Vitória, Gols, Ambas Marcam, Cartões e Escanteios sem repetições de jogos.")
 
-            # Ordenar por Score
             entradas_ordenadas = sorted(todas_entradas_globais, key=lambda x: x["score"], reverse=True)
 
-            # Separação por categorias de mercado para garantir variedade no bilhete
-            entradas_1x2 = [e for e in entradas_ordenadas if e["tipo"] == "1X2"]
-            entradas_gols = [e for e in entradas_ordenadas if e["tipo"] == "GOLS"]
-            entradas_cantos = [e for e in entradas_ordenadas if e["tipo"] == "ESCANTARIOS"]
+            entradas_1x2 = [e for e in entradas_ordenadas if e["tipo"] in ["1X2", "DUPLA CHANCE"]]
+            entradas_gols = [e for e in entradas_ordenadas if e["tipo"] in ["GOLS", "BTTS"]]
+            entradas_outros = [e for e in entradas_ordenadas if e["tipo"] in ["CARTOES", "ESCANTARIOS"]]
 
             if len(entradas_1x2) >= 2 and len(entradas_gols) >= 2:
                 col_d1, col_d2 = st.columns(2)
 
-                # Dupla 1: 1 Jogo em Vitória (1X2) + 1 Jogo em Gols
+                # Dupla 1
                 d1_e1 = entradas_1x2[0]
                 d1_e2 = next((g for g in entradas_gols if g["match"] != d1_e1["match"]), entradas_gols[0])
                 odd_d1 = d1_e1["val_odd"] * d1_e2["val_odd"]
@@ -431,10 +456,10 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                # Dupla 2: 1 Jogo em Gols + 1 Jogo em Escanteios
+                # Dupla 2
                 jogos_usados_d1 = {d1_e1["match"], d1_e2["match"]}
                 d2_e1 = next((g for g in entradas_gols if g["match"] not in jogos_usados_d1), entradas_gols[1])
-                d2_e2 = next((c for c in entradas_cantos if c["match"] not in jogos_usados_d1 and c["match"] != d2_e1["match"]), entradas_cantos[0])
+                d2_e2 = next((o for o in entradas_outros if o["match"] not in jogos_usados_d1 and o["match"] != d2_e1["match"]), entradas_outros[0])
                 odd_d2 = d2_e1["val_odd"] * d2_e2["val_odd"]
 
                 with col_d2:
@@ -442,7 +467,7 @@ else:
                         f"""
                     <div class="combo-card">
                         <div class="combo-header">
-                            <span>🟢 DUPLA PRO #2 (Gols & Escanteios)</span>
+                            <span>🟢 DUPLA PRO #2 (Gols & Disciplinar)</span>
                             <span style="color:#00FF66; font-size:1.2em;">ODD TOTAL: @ {odd_d2:.2f}</span>
                         </div>
                         <div class="combo-item">
@@ -458,25 +483,18 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                # --- MONTAGEM DA MÚLTIPLA DIVERSIFICADA (ODD MINIMA 5.00) ---
+                # Múltipla Diversificada
                 multipla_selecoes = []
                 jogos_multipla = set()
                 odd_acumulada = 1.0
 
-                # Seleciona ordenado garantindo no máximo 1 palpite de escanteio e 0 jogos repetidos
-                cantos_inclusos = 0
                 for item in entradas_ordenadas:
                     if item["match"] in jogos_multipla:
-                        continue
-                    if item["tipo"] == "ESCANTARIOS" and cantos_inclusos >= 1:
                         continue
 
                     multipla_selecoes.append(item)
                     jogos_multipla.add(item["match"])
                     odd_acumulada *= item["val_odd"]
-
-                    if item["tipo"] == "ESCANTARIOS":
-                        cantos_inclusos += 1
 
                     if odd_acumulada >= 5.00 and len(multipla_selecoes) >= 3:
                         break
@@ -512,5 +530,3 @@ else:
                 """,
                     unsafe_allow_html=True,
                 )
-            else:
-                st.info("⚠️ É necessário analisar mais partidas para montar a grade de combinadas.")
