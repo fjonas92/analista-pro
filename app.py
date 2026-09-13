@@ -5,7 +5,7 @@ import streamlit as st
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
-    page_title="Analisador Pro — Inteligência Artificial",
+    page_title="Analisador Pro — IA",
     page_icon="⚽",
     layout="wide"
 )
@@ -14,62 +14,45 @@ API_FOOTBALL_KEY = st.secrets.get("API_FOOTBALL_KEY", "0d03200b5ee68704d96a72a17
 LICENCAS_VALIDAS = ["PRO-FUTEBOL-2026", "VIP-ANALISTA-888", "CLIENTE-PRO-01", "ADMIN-MASTER-99"]
 
 # LISTA ESTRITA DE LIGAS PERMITIDAS
-LIGAS_PERMITIDAS = {
+LIGAS_PERMITIDAS = [
     # Nacionais e Estaduais Brasil
-    "serie a", "serie b", "serie c", "serie d", "copa do brasil", "supercopa do brasil", 
-    "copa do nordeste", "brasileiro feminino", "brasileiro feminino a1", "paulista", "paulista a1",
-    "paulista a2", "paulista segunda divisao", "copa paulista", "carioca", "carioca a2", 
-    "mineiro", "mineiro modulo ii", "mineiro segunda divisao", "gaucho", "gaucho a2", "gaucho b",
-    "paranaense", "paranaense a2", "catarinense", "catarinense b", "baiano", "baiano b",
-    "pernambucano", "pernambucano a2", "cearense", "cearense b", "goiano", "goiano a2",
-    "paraense", "paraense b", "amazonense", "alagoano", "alagoano b", "sergipano", "sergipano a2",
-    "paraibano", "paraibano b", "potiguar", "potiguar segunda divisao", "maranhense", "maranhense b",
-    "piauiense", "piauiense b", "mato-grossense", "sul-mato-grossense", "brasiliense", "capixaba",
+    "Brasileirão Série A", "Brasileirão Série B", "Brasileirão Série C", "Brasileirão Série D", 
+    "Copa do Brasil", "Supercopa do Brasil", "Copa do Nordeste", "Brasileiro Feminino A1", 
+    "Campeonato Paulista", "Campeonato Paulista Série A2", "Paulista Segunda Divisão", "Copa Paulista", 
+    "Campeonato Carioca", "Campeonato Carioca Série A2", "Campeonato Mineiro", "Campeonato Mineiro Módulo II", 
+    "Campeonato Gaúcho", "Campeonato Gaúcho Série A2", "Campeonato Paranaense", "Campeonato Paranaense Série A2", 
+    "Campeonato Catarinense", "Campeonato Catarinense Série B", "Campeonato Baiano", "Campeonato Pernambucano", 
+    "Campeonato Cearense", "Campeonato Goiano", "Campeonato Paraense", "Campeonato Amazonense", 
+    "Campeonato Alagoano", "Campeonato Sergipano", "Campeonato Paraibano", "Campeonato Potiguar", 
+    "Campeonato Maranhense", "Campeonato Piauiense", "Campeonato Mato-Grossense", "Campeonato Sul-Mato-Grossense", 
+    "Campeonato Brasiliense", "Campeonato Capixaba",
     
     # América do Sul
-    "conmebol libertadores", "libertadores", "conmebol sudamericana", "sudamericana", "recopa sudamericana",
-    "liga profesional", "primera division", "copa argentina", "supercopa argentina", 
-    "primera b", "copa chile", "supercopa de chile", "primera a", "copa colombia", "superliga colombia",
-    "segunda division", "copa uruguay", "ligapro serie a", "ligapro serie b", "copa ecuador",
-    "division intermedia", "copa paraguay", "liga 1", "liga 2", "copa peru", "division profesional",
-    "copa venezuela",
+    "Copa Libertadores", "Copa Sudamericana", "Recopa Sudamericana", "Argentina Primera División", 
+    "Copa Argentina", "Supercopa Argentina", "Chile Primera División", "Chile Primera B", "Copa Chile", 
+    "Colombia Primera A", "Colombia Primera B", "Copa Colombia", "Uruguay Primera División", 
+    "Ecuador LigaPro Serie A", "Paraguay Primera División", "Peru Liga 1", "Bolivia División Profesional", 
+    "Venezuela Primera División",
 
     # Europa — Principais
-    "premier league", "championship", "league one", "league two", "national league", "fa cup", "efl cup", "community shield",
-    "laliga", "laliga 2", "copa del rey", "supercopa de españa", "coppa italia", "supercoppa italiana",
-    "bundesliga", "2. bundesliga", "dfb-pokal", "dfl-supercup", "ligue 1", "ligue 2", "coupe de france", "trophee des champions",
-    "primeira liga", "liga portugal 2", "taca de portugal", "taca da liga", "supertaca candido de oliveira",
-    "eredivisie", "eerste divisie", "knvb beker", "belgian pro league", "challenger pro league", "belgian cup",
-    "super lig", "turkish cup", "scottish premiership", "scottish championship", "scottish cup",
-    "austrian bundesliga", "austrian cup", "swiss super league", "swiss challenge league", "swiss cup",
-    "greek super league", "greek super league 2", "greek cup", "danish superliga", "danish 1st division", "danish cup",
-    "eliteserien", "norwegian 1st division", "norwegian cup", "allsvenskan", "superettan", "swedish cup",
-    "veikkausliiga", "ykkosliiga", "finnish cup", "ekstraklasa", "i liga", "polish cup",
-    "czech first league", "czech national football league", "czech cup", "hnl", "croatian cup",
-    "superliga", "serbian first league", "serbian cup", "liga i", "liga ii", "romanian cup",
-    "ukrainian premier league", "ukrainian first league", "ukrainian cup", "bulgarian first league", "bulgarian second league", "bulgarian cup",
-    "slovak first league", "slovak 2. liga", "slovak cup", "prvaliga", "slovenian cup",
-    "nb i", "nb ii", "hungarian cup", "israeli premier league", "israeli liga leumit", "israeli state cup",
-    "cypriot first division", "cyprus cup", "irish premier division", "irish first division", "fai cup",
-    "besta deild karla", "besta-deild", "1. deild", "icelandic cup",
+    "Premier League", "Championship", "League One", "League Two", "FA Cup", "EFL Cup", 
+    "LaLiga", "LaLiga 2", "Copa del Rey", "Supercopa de España", "Serie A", "Serie B", "Coppa Italia", 
+    "Bundesliga", "2. Bundesliga", "DFB-Pokal", "Ligue 1", "Ligue 2", "Coupe de France", 
+    "Primeira Liga", "Liga Portugal 2", "Taça de Portugal", "Eredivisie", "KNVB Beker", 
+    "Belgian Pro League", "Belgian Cup", "Turkish Süper Lig", "Turkish Cup", "Scottish Premiership", 
+    "Austrian Bundesliga", "Swiss Super League", "Greek Super League", "Danish Superliga", 
+    "Norwegian Eliteserien", "Swedish Allsvenskan", "Finnish Veikkausliiga", "Polish Ekstraklasa", 
+    "Czech First League", "Croatian HNL", "Serbian SuperLiga", "Romanian Liga I", "Ukrainian Premier League",
 
-    # UEFA / Europa Internacional
-    "uefa champions league", "uefa europa league", "uefa conference league", "uefa super cup",
-    "uefa nations league", "uefa euro", "euro qualifiers", "uefa champions league women",
-    "uefa women's euro", "uefa youth league", "champions league qualifiers", "europa league qualifiers", "conference league qualifiers",
+    # UEFA / Internacional
+    "UEFA Champions League", "UEFA Europa League", "UEFA Conference League", "UEFA Super Cup", 
+    "UEFA Nations League", "UEFA Euro", "Champions League Qualifiers", "Europa League Qualifiers",
 
-    # América do Norte e Central
-    "major league soccer", "mls", "usl championship", "usl league one", "nwsl", "liga mx", "liga de expansion mx",
-    "liga mx femenil", "copa mx", "campeon de campeones", "leagues cup", "concacaf champions cup",
-    "concacaf gold cup", "concacaf nations league", "primera division", "canada premier league",
-
-    # Ásia / África
-    "afc champions league elite", "afc champions league two", "afc asian cup", "j1 league", "j2 league", "emperor's cup", "j.league cup",
-    "k league 1", "k league 2", "korean fa cup", "chinese super league", "chinese league one", "chinese fa cup",
-    "saudi pro league", "king cup", "uae pro league", "qatar stars league", "a-league men", "a-league women", "australia ffa cup",
-    "v.league 1", "malaysian super league", "indonesian liga 1", "uzbekistan super league",
-    "africa cup of nations", "caf champions league", "caf confederation cup", "egyptian premier league", "south african premiership"
-}
+    # América do Norte, Ásia e África
+    "MLS", "USL Championship", "Liga MX", "CONCACAF Champions Cup", "Leagues Cup", 
+    "AFC Champions League Elite", "Japan J1 League", "South Korea K League 1", "Chinese Super League", 
+    "Saudi Pro League", "Australian A-League Men", "CAF Champions League", "Egyptian Premier League"
+]
 
 # 2. AUTENTICAÇÃO
 if "autenticado" not in st.session_state:
@@ -179,11 +162,31 @@ def buscar_odds_bet365(fixture_id):
                             if val["value"] == "Over 8.5": odd_corners = float(val["odd"])
     return odd_1, odd_over25, odd_btts, odd_corners
 
-# 5. HEADER PRINCIPAL
-st.markdown("<h1 style='text-align: center; color: #38bdf8; margin-bottom: 0px;'>🤖 Analisador Pro — Inteligência Artificial</h1>", unsafe_allow_html=True)
+# 5. HEADER PRINCIPAL COM IMAGEM E NOME AJUSTADO
+col_img1, col_img2, col_img3 = st.columns([1, 2, 1])
+with col_img2:
+    # Insira a imagem do Analista Pro enviada
+    try:
+        st.image("logo.png", use_container_width=True)
+    except:
+        st.markdown("<h1 style='text-align: center; color: #38bdf8;'>⚽ ANALISTA PRO</h1>", unsafe_allow_html=True)
+
+st.markdown("<h2 style='text-align: center; color: #38bdf8; margin-top: -10px;'>Analisador Pro — IA</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px; margin-top: 5px; margin-bottom: 25px;'>3 Dicas por Jogo (Alta, Média e Baixa Confiança) | API Paga & Modelo Poisson</p>", unsafe_allow_html=True)
 
-opcao_filtro = st.radio("Selecione os jogos:", ["🔴 Jogos de Hoje", "🟡 Jogos de Amanhã"], horizontal=True)
+# 6. FILTROS DA INTERFACE
+col_f1, col_f2 = st.columns([1, 2])
+
+with col_f1:
+    opcao_filtro = st.radio("Selecione a data:", ["🔴 Jogos de Hoje", "🟡 Jogos de Amanhã"], horizontal=True)
+
+with col_f2:
+    ligas_selecionadas = st.multiselect(
+        "Filtrar Ligas Específicas:",
+        options=sorted(LIGAS_PERMITIDAS),
+        placeholder="Todas as ligas permitidas (ou digite para filtrar)"
+    )
+
 btn_buscar = st.button("🔍 CARREGAR PROGNÓSTICOS DA IA", use_container_width=True)
 
 now_utc = datetime.now(timezone.utc)
@@ -199,17 +202,18 @@ if btn_buscar or "analise_cache" not in st.session_state:
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
-# FILTRAGEM ESTRITA POR STATUS E POR LIGAS PERMITIDAS
+# FILTRAGEM ESTRITA DE LIGAS
 partidas_validas = []
+ligas_alvo = [l.lower().strip() for l in ligas_selecionadas] if ligas_selecionadas else [l.lower().strip() for l in LIGAS_PERMITIDAS]
+
 for item in raw_fixtures:
     if item["fixture"]["status"]["short"] in ["NS", "TBD"]:
         nome_liga = item["league"]["name"].lower().strip()
-        # Verifica se o nome da liga corresponde a qualquer item da lista permitida
-        if any(liga_valida in nome_liga for liga_valida in LIGAS_PERMITIDAS):
+        if any(liga_valida in nome_liga for liga_valida in ligas_alvo):
             partidas_validas.append(item)
 
 if not partidas_validas:
-    st.warning("⚠️ Nenhum jogo das ligas selecionadas foi encontrado para a data.")
+    st.warning("⚠️ Nenhum jogo das ligas selecionadas foi encontrado para esta data.")
 else:
     for item in partidas_validas[:15]:
         fix = item["fixture"]
