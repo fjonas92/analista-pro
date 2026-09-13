@@ -152,8 +152,8 @@ opcao_filtro = st.radio(
 btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES PRONTOS", use_container_width=True)
 
 
-# Cache de 15 minutos para economizar cota e impedir Erro 429 (Rate Limit)
-@st.cache_data(ttl=900)
+# Cache de 10 minutos para proteger a cota da API (300 reqs/min)
+@st.cache_data(ttl=600)
 def buscar_partidas_api_football(data_str=None):
     url = "https://v3.football.api-sports.io/fixtures"
     headers = {"x-apisports-key": API_FOOTBALL_KEY}
@@ -169,11 +169,13 @@ def buscar_partidas_api_football(data_str=None):
             data = res.json()
             errors = data.get("errors", {})
             if errors and isinstance(errors, dict) and len(errors) > 0:
+                if "rateLimit" in errors:
+                    return None, "Limite da API temporariamente atingido (300 req/min). Aguarde 1 minuto."
                 err_msg = ", ".join([f"{k}: {v}" for k, v in errors.items()])
                 return None, f"Erro da API: {err_msg}"
             return data.get("response", []), None
         elif res.status_code == 429:
-            return None, "Limite de requisições por segundo excedido. Aguarde alguns instantes."
+            return None, "Limite de requisições por minuto excedido na API-Football. Aguarde 1 minuto."
         else:
             return None, f"Erro na requisição à API-Football: Status {res.status_code}"
     except Exception as e:
@@ -181,7 +183,7 @@ def buscar_partidas_api_football(data_str=None):
 
 
 if btn_buscar:
-    with st.spinner("Buscando partidas em tempo real..."):
+    with st.spinner("Conectando à API e consultando partidas..."):
         agora_utc = datetime.now(timezone.utc)
         agora_br = agora_utc - timedelta(hours=3)
         hoje_local = agora_br.date()
@@ -208,7 +210,7 @@ if btn_buscar:
             teams = item.get("teams", {})
             status_short = fixture.get("status", {}).get("short", "")
 
-            # Apenas jogos que AINDA NÃO COMEÇARAM
+            # Aceita apenas partidas não iniciadas
             if status_short not in ["NS", "TBD"]:
                 continue
 
@@ -241,7 +243,7 @@ if btn_buscar:
             time_fora = teams.get("away", {}).get("name", "Visitante")
             liga_nome = league.get("name", "Futebol Profissional")
 
-            # Mapeamento estático e limpo para evitar requisições em loop
+            # Mapeamento estático e limpo para proteger requisições adicionais
             odd_casa, odd_empate, odd_fora = "1.85", "3.40", "3.90"
             odd_over25, odd_under25 = "1.80", "2.00"
             btts_sim, btts_nao = "1.72", "2.05"
