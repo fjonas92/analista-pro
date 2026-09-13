@@ -132,7 +132,7 @@ st.markdown(
 )
 
 # Botão principal de buscar jogos
-btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES (TODOS OS PRÓXIMOS JOGOS)", use_container_width=True)
+btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES (APENAS JOGOS FUTUROS)", use_container_width=True)
 
 
 def carregar_jogos_api():
@@ -148,7 +148,7 @@ def carregar_jogos_api():
 
 
 if btn_buscar:
-    with st.spinner("Buscando todos os próximos jogos disponíveis..."):
+    with st.spinner("Buscando partidas pré-jogo (ainda não iniciadas)..."):
         jogos_raw, erro = carregar_jogos_api()
 
     if erro:
@@ -157,6 +157,7 @@ if btn_buscar:
         st.warning("Nenhum evento encontrado no momento.")
     else:
         jogos_processados = []
+        agora_utc = datetime.now(timezone.utc)
 
         for item in jogos_raw:
             # Filtra apenas futebol
@@ -169,16 +170,20 @@ if btn_buscar:
             liga = item.get("sport_title", "Futebol Global")
             data_raw = item.get("commence_time", "")
 
-            data_formatada = "Data N/A"
-
+            # Validação estrita de horário: ignora jogos que já começaram ou estão iniciando agora
             try:
                 dt_utc = datetime.strptime(data_raw, "%Y-%m-%dT%H:%M:%SZ").replace(
                     tzinfo=timezone.utc
                 )
-                dt_local = dt_utc - timedelta(hours=3)  # Horário de Brasília
+                
+                # Se a partida começou há mais de 2 minutos ou já está em andamento, pula
+                if dt_utc < (agora_utc - timedelta(minutes=2)):
+                    continue
+
+                dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
                 data_formatada = dt_local.strftime("%d/%m - %H:%M")
             except Exception:
-                pass
+                continue
 
             odd_casa, odd_empate, odd_fora = "N/A", "N/A", "N/A"
             odd_over25, odd_under25 = "N/A", "N/A"
@@ -266,9 +271,9 @@ if btn_buscar:
             jogos_processados.append((info, analise))
 
         if not jogos_processados:
-            st.warning("Nenhum jogo de futebol encontrado no momento.")
+            st.warning("Nenhum jogo pré-partida futuro encontrado no momento. Tente novamente mais tarde.")
         else:
-            st.success(f"✅ {len(jogos_processados)} partidas encontradas!")
+            st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas!")
 
             for info, analise in jogos_processados:
                 with st.container():
