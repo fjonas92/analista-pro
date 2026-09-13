@@ -520,6 +520,17 @@ else:
         home = item["teams"]["home"]
         away = item["teams"]["away"]
 
+        # CONVERSÃO E FORMATAÇÃO DO HORÁRIO DO JOGO (FUSO BRASÍLIA)
+        iso_date = fix.get("date", "")
+        horario_str = ""
+        if iso_date:
+            try:
+                dt_utc = datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
+                dt_br = dt_utc.astimezone(timezone(timedelta(hours=-3)))
+                horario_str = dt_br.strftime("%H:%M")
+            except Exception:
+                horario_str = ""
+
         odd_1, odd_over25, odd_btts, odd_corners = buscar_odds_bet365(fix["id"])
         
         oportunidades = gerar_analise_dinamica(
@@ -528,7 +539,13 @@ else:
 
         with st.container(border=True):
             st.markdown(f"<h3 style='text-align: center; margin-bottom: 2px;'>{home['name']} x {away['name']}</h3>", unsafe_allow_html=True)
-            st.markdown(f"<p style='text-align: center; color: #fbbf24; font-size: 13px; font-weight: 600;'>🏆 {league['country']} {league['name']}</p>", unsafe_allow_html=True)
+            
+            # EXIBIÇÃO DA LIGA E DO HORÁRIO
+            texto_sub = f"🏆 {league['country']} {league['name']}"
+            if horario_str:
+                texto_sub += f" &nbsp;•&nbsp; ⏰ {horario_str}"
+                
+            st.markdown(f"<p style='text-align: center; color: #fbbf24; font-size: 13px; font-weight: 600;'>{texto_sub}</p>", unsafe_allow_html=True)
 
             st.markdown("#### 🎯 Dicas")
 
