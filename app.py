@@ -269,52 +269,66 @@ def analisar_oportunidades_partida(fixture):
     return oportunidades, {"odd_h": odd_h, "odd_d": odd_d, "odd_a": odd_a}
 
 
-# --- EXECUÇÃO E CARGA DE DADOS ---
-if btn_buscar or "raw_fixtures" not in st.session_state:
-    now_utc = datetime.now(timezone.utc)
-    data_str = None
-    if "Hoje" in opcao_filtro:
-        data_str = now_utc.strftime("%Y-%m-%d")
-    elif "Amanhã" in opcao_filtro:
-        data_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
+# --- BUSCA COM TIMEZONE E FALLBACK AUTOMÁTICO ---
+fuso_br = "America/Sao_Paulo"
+now_utc = datetime.now(timezone.utc)
 
-    params_fixture = {"date": data_str} if data_str else {"next": "100"}
-    st.session_state["raw_fixtures"] = api_get("fixtures", params_fixture)
+if btn_buscar or "raw_fixtures" not in st.session_state:
+    params_fixture = {"timezone": fuso_br}
+    
+    if "Hoje" in opcao_filtro:
+        dt_hoje = (now_utc - timedelta(hours=3)).strftime("%Y-%m-%d")
+        params_fixture["date"] = dt_hoje
+    elif "Amanhã" in opcao_filtro:
+        dt_amanha = (now_utc - timedelta(hours=3) + timedelta(days=1)).strftime("%Y-%m-%d")
+        params_fixture["date"] = dt_amanha
+    else:
+        params_fixture["next"] = "80"
+
+    fixtures_res = api_get("fixtures", params_fixture)
+
+    # Fallback: Se não houver jogos por data exata, carrega os próximos 80 jogos
+    if not fixtures_res and ("date" in params_fixture):
+        st.info("ℹ️ Não foram encontrados jogos futuros na data informada. Carregando as próximas partidas da grade...")
+        fixtures_res = api_get("fixtures", {"next": "80", "timezone": fuso_br})
+
+    st.session_state["raw_fixtures"] = fixtures_res
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
 if not raw_fixtures:
-    st.warning("⚠️ Nenhum jogo encontrado para o período selecionado.")
+    st.error("⚠️ Nenhum jogo pendente encontrado na API. Tente selecionar '🌟 Todos os Próximos Jogos' e clique em GERAR PROGNÓSTICOS.")
 else:
-    now_utc = datetime.now(timezone.utc)
     partidas_validas = []
 
     for item in raw_fixtures:
         fix = item["fixture"]
         dt_fix = datetime.fromisoformat(fix["date"].replace("Z", "+00:00"))
-        if dt_fix > now_utc and fix["status"]["short"] in ["NS", "TBD"]:
+        # Inclui partidas marcadas como NS (Não Iniciada) ou TBD
+        if fix["status"]["short"] in ["NS", "TBD"]:
             partidas_validas.append((dt_fix, item))
 
     partidas_validas.sort(key=lambda x: x[0])
 
     if not partidas_validas:
-        st.info("⚠️ Não há partidas pendentes para o período selecionado.")
+        st.warning("⚠️ Todos os jogos listados para este filtro já foram iniciados ou encerrados.")
     else:
         # ABAS PRINCIPAIS
         tab_jogos, tab_combos = st.tabs(["⚽ JOGOS & ANÁLISES POR LIGA", "🚀 DUPLAS & MÚLTIPLA PRO (ODD 5.00+)"])
 
-        # PROCESSAMENTO GLOBAL (Independente do filtro de liga para alimentar as Múltiplas)
+        # PROCESSAMENTO GLOBAL
         todas_entradas_globais = []
         partidas_processadas = []
 
-        for dt_fix, item in partidas_validas:
-            opps, m_odds = analisar_oportunidades_partida(item)
-            todas_entradas_globais.extend(opps)
-            partidas_processadas.append((dt_fix, item, opps, m_odds))
+        with st.spinner("⏳ Analisando dados quantitativos e precificando odds..."):
+            for dt_fix, item in partidas_validas[:35]:  # Otimização de performance (Top 35 jogos)
+                opps, m_odds = analisar_oportunidades_partida(item)
+                todas_entradas_globais.extend(opps)
+                partidas_processadas.append((dt_fix, item, opps, m_odds))
 
-        # --- ABA 1: ANÁLISES INDIVIDUAIS COM FILTRO DE LIGAS ---
+        # --- ABA 1: ANÁLISES INDIVIDUAIS POR LIGA ---
         with tab_jogos:
-            ligas_disponiveis = sorted(list(set([f"{item['league']['country']} - {item['league']['name']}" for _, item in partidas_validas])))
+            ligas_disponiveis = sorted(list(set([f"{item['league']['country']} - {item['league']['name']}" for _, item in partidas_validas[:35]])))
             ligas_opcoes = ["🌍 Todas as Ligas"] + ligas_disponiveis
 
             st.write("")
@@ -328,9 +342,9 @@ else:
                 if liga_selecionada == "🌍 Todas as Ligas" or liga_selecionada == nome_liga:
                     partidas_exibir.append((dt_fix, item, opps, m_odds))
 
-            st.success(f"✅ {len(partidas_validas)} partidas analisadas no total! (Exibindo {len(partidas_exibir)} para a liga selecionada)")
+            st.success(f"✅ {len(partidas_processadas)} partidas analisadas! (Exibindo {len(partidas_exibir)} para a liga selecionada)")
 
-            for dt_fix, item, opps, match_odds in partidas_exibir[:50]:
+            for dt_fix, item, opps, match_odds in partidas_exibir:
                 league = item["league"]
                 teams = item["teams"]
                 dt_br = dt_fix - timedelta(hours=3)
@@ -396,12 +410,10 @@ else:
         with tab_combos:
             st.write("")
             st.subheader("🔥 Bilhetes Prontos e Combinadas do Dia")
-            st.caption("Gerado com os bilhetes de maior Score de Confiança estatística da grade do dia.")
+            st.caption("Gerado com as seleções de maior Score estatístico do sistema.")
 
-            # Filtrar e ordenar entradas de jogos distintos
             entradas_ordenadas = sorted(todas_entradas_globais, key=lambda x: x["score"], reverse=True)
 
-            # Evita duplicar jogos no mesmo bilhete
             jogos_usados = set()
             entradas_unicas = []
             for e in entradas_ordenadas:
@@ -462,7 +474,7 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                # --- MONTAGEM DA MÚLTIPLA COM ODD MÍNIMA DE 5.00 ---
+                # --- MONTAGEM DA MÚLTIPLA (ODD MINIMA 5.00) ---
                 multipla_selecoes = []
                 odd_acumulada = 1.0
 
@@ -504,4 +516,4 @@ else:
                     unsafe_allow_html=True,
                 )
             else:
-                st.info("⚠️ É necessário carregar mais jogos para formar as combinações do dia.")
+                st.info("⚠️ Carregue mais jogos para montar as combinações do dia.")
