@@ -94,6 +94,20 @@ LICENCAS_VALIDAS = [
     "ADMIN-MASTER-99",
 ]
 
+# Ligas de futebol populares
+LIGAS_FUTEBOL = [
+    "soccer_brazil_campeonato",
+    "soccer_epl",
+    "soccer_spain_la_liga",
+    "soccer_italy_serie_a",
+    "soccer_germany_bundesliga",
+    "soccer_france_ligue_one",
+    "soccer_uefa_champs_league",
+    "soccer_uefa_europa_league",
+    "soccer_argentina_primera_division",
+    "soccer_usa_mls",
+]
+
 # Inicializa estado de login
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
@@ -131,36 +145,48 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Botão principal de buscar jogos
-btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES (APENAS JOGOS FUTUROS)", use_container_width=True)
+btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES (TODOS OS PRÓXIMOS JOGOS)", use_container_width=True)
 
 
-def carregar_jogos_api():
-    url = f"https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
-    try:
-        res = requests.get(url, timeout=12)
-        if res.status_code == 200:
-            return res.json(), None
-        else:
-            return None, f"Status API: {res.status_code}"
-    except Exception as e:
-        return None, str(e)
+def carregar_jogos_das_ligas():
+    jogos_agrupados = []
+    
+    # 1. Tenta carregar os próximos jogos das principais ligas
+    for liga_key in LIGAS_FUTEBOL:
+        url = f"https://api.the-odds-api.com/v4/sports/{liga_key}/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
+        try:
+            res = requests.get(url, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, list):
+                    jogos_agrupados.extend(data)
+        except Exception:
+            continue
+
+    # 2. Se nenhuma liga específica retornar nada, usa a busca global de próximos eventos
+    if not jogos_agrupados:
+        url_fallback = f"https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
+        try:
+            res = requests.get(url_fallback, timeout=8)
+            if res.status_code == 200:
+                jogos_agrupados = res.json()
+        except Exception:
+            pass
+
+    return jogos_agrupados
 
 
 if btn_buscar:
-    with st.spinner("Buscando partidas pré-jogo (ainda não iniciadas)..."):
-        jogos_raw, erro = carregar_jogos_api()
+    with st.spinner("Buscando partidas de amanhã e dos próximos dias nas ligas globais..."):
+        jogos_raw = carregar_jogos_das_ligas()
 
-    if erro:
-        st.error(f"⚠️ Erro ao consultar a API: {erro}")
-    elif not jogos_raw:
-        st.warning("Nenhum evento encontrado no momento.")
+    if not jogos_raw:
+        st.warning("Nenhum evento futuro encontrado no momento.")
     else:
         jogos_processados = []
         agora_utc = datetime.now(timezone.utc)
 
         for item in jogos_raw:
-            # Filtra apenas futebol
             sport_key = item.get("sport_key", "")
             if "soccer" not in sport_key:
                 continue
@@ -170,14 +196,13 @@ if btn_buscar:
             liga = item.get("sport_title", "Futebol Global")
             data_raw = item.get("commence_time", "")
 
-            # Validação estrita de horário: ignora jogos que já começaram ou estão iniciando agora
             try:
                 dt_utc = datetime.strptime(data_raw, "%Y-%m-%dT%H:%M:%SZ").replace(
                     tzinfo=timezone.utc
                 )
                 
-                # Se a partida começou há mais de 2 minutos ou já está em andamento, pula
-                if dt_utc < (agora_utc - timedelta(minutes=2)):
+                # Ignora jogos que já começaram ou passaram do horário
+                if dt_utc < agora_utc:
                     continue
 
                 dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
@@ -271,7 +296,7 @@ if btn_buscar:
             jogos_processados.append((info, analise))
 
         if not jogos_processados:
-            st.warning("Nenhum jogo pré-partida futuro encontrado no momento. Tente novamente mais tarde.")
+            st.warning("Nenhum jogo pré-partida futuro encontrado nas ligas monitoradas no momento.")
         else:
             st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas!")
 
