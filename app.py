@@ -103,7 +103,7 @@ else:
 
 st.markdown(css_tema, unsafe_allow_html=True)
 
-# 4. REQUISIÇÕES DA API COM CACHE EFICIENTE
+# 4. REQUISIÇÕES DE API
 @st.cache_data(ttl=600)
 def api_get_fixtures(data_str):
     url = "https://v3.football.api-sports.io/fixtures"
@@ -126,259 +126,211 @@ def api_get_odds(fixture_id):
     except Exception:
         return []
 
-@st.cache_data(ttl=10800)
-def obter_historico_time_especifico(team_id, mandar_tipo="geral"):
+@st.cache_data(ttl=3600)
+def obter_estatisticas_reais_time(team_id, tipo_mando="geral"):
     if not team_id:
-        return {"vitorias": 3, "empates": 1, "derrotas": 1, "gols_pro": 1.6, "gols_contra": 0.8, "chutes": 5.4, "posse": 54, "pontos_ponderados": 10, "cartoes": 2.1, "escanteios": 5.2}
-    
+        return None
+
     url = "https://v3.football.api-sports.io/fixtures"
     headers = {"x-apisports-key": API_FOOTBALL_KEY}
-    params = {"team": team_id, "last": 6}
+    params = {"team": team_id, "last": 8}
     
     try:
         res = requests.get(url, headers=headers, params=params, timeout=10)
-        last_fixtures = res.json().get("response", []) if res.status_code == 200 else []
+        fixtures = res.json().get("response", []) if res.status_code == 200 else []
     except Exception:
-        last_fixtures = []
+        fixtures = []
 
-    if not last_fixtures:
-        return {"vitorias": 3, "empates": 1, "derrotas": 1, "gols_pro": 1.6, "gols_contra": 0.8, "chutes": 5.4, "posse": 54, "pontos_ponderados": 10, "cartoes": 2.1, "escanteios": 5.2}
+    if not fixtures:
+        return None
 
-    if mandar_tipo == "home":
-        filtrados = [f for f in last_fixtures if f["teams"]["home"]["id"] == team_id]
-        fixtures_para_analise = filtrados[:5] if len(filtrados) >= 3 else last_fixtures[:5]
-    elif mandar_tipo == "away":
-        filtrados = [f for f in last_fixtures if f["teams"]["away"]["id"] == team_id]
-        fixtures_para_analise = filtrados[:5] if len(filtrados) >= 3 else last_fixtures[:5]
-    else:
-        fixtures_para_analise = last_fixtures[:5]
+    vitorias, empates, derrotas = 0, 0, 0
+    gols_pro, gols_contra = 0, 0
+    jogos_processados = 0
 
-    v, e, d = 0, 0, 0
-    gp, gc = 0, 0
-    pontos_ponderados = 0.0
-
-    for idx, fix in enumerate(fixtures_para_analise):
+    for fix in fixtures:
+        if fix["fixture"]["status"]["short"] not in ["FT", "AET", "PEN"]:
+            continue
+            
         is_home = (fix["teams"]["home"]["id"] == team_id)
+        
+        if tipo_mando == "home" and not is_home:
+            continue
+        if tipo_mando == "away" and is_home:
+            continue
+
         gh = fix["goals"]["home"] if fix["goals"]["home"] is not None else 0
         ga = fix["goals"]["away"] if fix["goals"]["away"] is not None else 0
         
-        g_favor = gh if is_home else ga
-        g_contra = ga if is_home else gh
-        gp += g_favor
-        gc += g_contra
+        gp = gh if is_home else ga
+        gc = ga if is_home else gh
         
-        peso_recencia = 1.2 if idx < 2 else 1.0
+        gols_pro += gp
+        gols_contra += gc
 
-        if g_favor > g_contra:
-            v += 1
-            pontos_ponderados += (3.0 * peso_recencia)
-        elif g_favor == g_contra:
-            e += 1
-            pontos_ponderados += (1.0 * peso_recencia)
+        if gp > gc:
+            vitorias += 1
+        elif gp == gc:
+            empates += 1
         else:
-            d += 1
+            derrotas += 1
+            
+        jogos_processados += 1
 
-    n_jogos = max(1, len(fixtures_para_analise))
+    n = max(1, jogos_processados)
+    aproveitamento = ((vitorias * 3 + empates) / (n * 3)) if n > 0 else 0.5
+
     return {
-        "vitorias": v, "empates": e, "derrotas": d,
-        "gols_pro": round(gp / n_jogos, 2),
-        "gols_contra": round(gc / n_jogos, 2),
-        "chutes": round(4.2 + (team_id % 4) * 0.6, 1),
-        "posse": int(48 + (team_id % 5) * 3),
-        "pontos_ponderados": round(pontos_ponderados, 1),
-        "cartoes": round(1.8 + (team_id % 3) * 0.7, 1),
-        "escanteios": round(4.5 + (team_id % 4) * 0.8, 1)
+        "jogos": n,
+        "vitorias": vitorias,
+        "empates": empates,
+        "derrotas": derrotas,
+        "media_gols_pro": round(gols_pro / n, 2),
+        "media_gols_contra": round(gols_contra / n, 2),
+        "aproveitamento": round(aproveitamento * 100, 1)
     }
 
-def buscar_odds_reais_api(fixture_id):
-    odds_data = api_get_odds(fixture_id)
-    odds_map = {}
+def extrair_odds_partida(fixture_id):
+    raw_odds = api_get_odds(fixture_id)
+    odds = {
+        "home": 2.10, "draw": 3.30, "away": 3.20,
+        "over25": 1.90, "under25": 1.90,
+        "btts_yes": 1.85, "dnb_home": 1.50, "dnb_away": 2.20
+    }
     
-    if odds_data:
-        for bookmaker in odds_data[0].get("bookmakers", []):
+    if raw_odds:
+        for bookmaker in raw_odds[0].get("bookmakers", []):
             for bet in bookmaker.get("bets", []):
-                bet_id = bet.get("id")
-                for val in bet.get("values", []):
-                    chave = f"{bet_id}_{val['value']}"
-                    if chave not in odds_map:
-                        try:
-                            odds_map[chave] = float(val["odd"])
-                        except Exception:
-                            pass
+                bet_name = bet.get("name", "")
+                if bet_name == "Match Winner":
+                    for val in bet.get("values", []):
+                        if val["value"] == "Home": odds["home"] = float(val["odd"])
+                        elif val["value"] == "Draw": odds["draw"] = float(val["odd"])
+                        elif val["value"] == "Away": odds["away"] = float(val["odd"])
+                elif bet_name == "Goals Over/Under":
+                    for val in bet.get("values", []):
+                        if val["value"] == "Over 2.5": odds["over25"] = float(val["odd"])
+                        elif val["value"] == "Under 2.5": odds["under25"] = float(val["odd"])
+                elif bet_name == "Both Teams Score":
+                    for val in bet.get("values", []):
+                        if val["value"] == "Yes": odds["btts_yes"] = float(val["odd"])
 
-    # Defaults dinâmicos de fallback
-    o_home = odds_map.get("1_Home", round(2.00 + (fixture_id % 5) * 0.25, 2))
-    o_draw = odds_map.get("1_Draw", 3.40)
-    o_away = odds_map.get("1_Away", round(2.10 + (fixture_id % 7) * 0.35, 2))
-    
-    return {
-        "home": o_home, "draw": o_draw, "away": o_away,
-        "over15": odds_map.get("5_Over 1.5", 1.28),
-        "over25": odds_map.get("5_Over 2.5", 1.88),
-        "under25": odds_map.get("5_Under 2.5", 1.92),
-        "btts_yes": odds_map.get("8_Yes", 1.78),
-        "btts_no": odds_map.get("8_No", 1.95),
-        "dnb_home": odds_map.get("4_Home", round(o_home * 0.72, 2)),
-        "dnb_away": odds_map.get("4_Away", round(o_away * 0.72, 2)),
-        "dc_1x": odds_map.get("12_Home/Draw", round(o_home * 0.6, 2)),
-        "dc_x2": odds_map.get("12_Draw/Away", round(o_away * 0.6, 2)),
-        "home_over15": round(o_home * 0.88, 2),
-        "away_over15": round(o_away * 0.88, 2),
-        "ht_draw": 2.15,
-        "ht_home": round(o_home * 1.4, 2),
-        "ht_away": round(o_away * 1.4, 2),
-        "ah_home_minus1": round(o_home * 1.5, 2),
-        "ah_away_minus1": round(o_away * 1.5, 2),
-        "corners_over95": 1.85,
-        "cards_over45": 1.90
-    }
+    return odds
 
-# 5. SCANNER DE VALOR ESPERADO (EV+) DINÂMICO
-def processar_dados_partida_paralelo(home_id, home_name, away_id, away_name, fixture_id):
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        f_home = executor.submit(obter_historico_time_especifico, home_id, "home")
-        f_away = executor.submit(obter_historico_time_especifico, away_id, "away")
-        f_odds = executor.submit(buscar_odds_reais_api, fixture_id)
+# 5. GERADOR DE ANÁLISES BASEADO EM DADOS REAIS
+def analisar_partida(home_id, home_name, away_id, away_name, fixture_id):
+    stat_home = obter_estatisticas_reais_time(home_id, "home")
+    stat_away = obter_estatisticas_reais_time(away_id, "away")
+    odds = extrair_odds_partida(fixture_id)
 
-        h = f_home.result()
-        a = f_away.result()
-        o = f_odds.result()
+    # Caso a API não retorne histórico suficiente para um dos times
+    if not stat_home or not stat_away:
+        stat_home = stat_home or {"media_gols_pro": 1.2, "media_gols_contra": 1.0, "aproveitamento": 50.0, "jogos": 5}
+        stat_away = stat_away or {"media_gols_pro": 1.0, "media_gols_contra": 1.2, "aproveitamento": 40.0, "jogos": 5}
 
-    # Cálculo Estatístico de Probabilidades Reais do Confronto
-    exp_gols_home = (h["gols_pro"] + a["gols_contra"]) / 2.0
-    exp_gols_away = (a["gols_pro"] + h["gols_contra"]) / 2.0
-    exp_gols_total = exp_gols_home + exp_gols_away
-    
-    total_chutes = h["chutes"] + a["chutes"]
-    total_cartoes = h["cartoes"] + a["cartoes"]
-    total_escanteios = h["escanteios"] + a["escanteios"]
+    exp_gols_casa = (stat_home["media_gols_pro"] + stat_away["media_gols_contra"]) / 2.0
+    exp_gols_fora = (stat_away["media_gols_pro"] + stat_home["media_gols_contra"]) / 2.0
+    exp_gols_total = exp_gols_casa + exp_gols_fora
 
-    aprov_h = (h['pontos_ponderados'] / 18.0)
-    aprov_a = (a['pontos_ponderados'] / 18.0)
-    
-    prob_home = max(0.10, min(0.85, (aprov_h * 0.6) + (exp_gols_home / max(0.1, exp_gols_total)) * 0.4))
-    prob_away = max(0.10, min(0.85, (aprov_a * 0.6) + (exp_gols_away / max(0.1, exp_gols_total)) * 0.4))
-    prob_draw = max(0.05, 1.0 - (prob_home + prob_away))
+    opcoes = []
 
-    # POOL TOTAL DE MERCADOS DISPONÍVEIS PARA O ALGORITMO AVALIAR
-    pool_mercados = []
-
-    # 1. Vitória Seca Mandante
-    ev = (prob_home * o["home"]) - 1.0
-    pool_mercados.append({
-        "titulo": f"Vitória Seca — {home_name}", "odd": o["home"], "ev": ev, "conf": "Alta" if prob_home > 0.55 else "Média",
-        "tipo": "alta" if prob_home > 0.55 else "media",
-        "topicos": [f"Dominância em Casa: {int(aprov_h*100)}% de aproveitamento local contra {int(aprov_a*100)}% do visitante.", f"Expectativa de {exp_gols_home:.1f} gols a favor."]
-    })
-
-    # 2. Vitória Seca Visitante (Super Favorito ou Superioridade Fora)
-    ev = (prob_away * o["away"]) - 1.0
-    pool_mercados.append({
-        "titulo": f"Vitória Seca — {away_name}", "odd": o["away"], "ev": ev, "conf": "Alta" if prob_away > 0.55 else "Média",
-        "tipo": "alta" if prob_away > 0.55 else "media",
-        "topicos": [f"Força Visitante: {away_name} ostenta {int(aprov_a*100)}% de eficiência como visitante.", f"Média de {a['gols_pro']} gols marcados fora."]
-    })
-
-    # 3. Handicap Asiático (-1.0) Visitante
-    if prob_away > 0.60:
-        ev = (prob_away * 0.85 * o["ah_away_minus1"]) - 1.0
-        pool_mercados.append({
-            "titulo": f"Handicap Asiático {away_name} (-1.0)", "odd": o["ah_away_minus1"], "ev": ev, "conf": "Alta", "tipo": "alta",
-            "topicos": [f"Projeção de Vitória Confortável fora de casa.", "Reembolso integral do investimento caso vença por margem de 1 gol."]
+    # Mercado 1: Casa Vence ou Empate Anula
+    if stat_home["aproveitamento"] >= 60:
+        opcoes.append({
+            "titulo": f"Vitória — {home_name}",
+            "odd": odds["home"],
+            "conf": "Alta" if stat_home["aproveitamento"] >= 75 else "Média",
+            "tipo": "alta" if stat_home["aproveitamento"] >= 75 else "media",
+            "topicos": [
+                f"{home_name} apresenta {stat_home['aproveitamento']}% de aproveitamento em casa nos últimos jogos.",
+                f"Média de {stat_home['media_gols_pro']} gols marcados por jogo em seus domínios."
+            ]
+        })
+    else:
+        opcoes.append({
+            "titulo": f"{home_name} — Empate Anula (DNB)",
+            "odd": odds["dnb_home"],
+            "conf": "Média",
+            "tipo": "media",
+            "topicos": [
+                f"{home_name} manteve regularidade em casa ({stat_home['aproveitamento']}% de aproveitamento).",
+                f"Visitante possui média de {stat_away['media_gols_contra']} gols sofridos por jogo."
+            ]
         })
 
-    # 4. Handicap Asiático (-1.0) Mandante
-    if prob_home > 0.60:
-        ev = (prob_home * 0.85 * o["ah_home_minus1"]) - 1.0
-        pool_mercados.append({
-            "titulo": f"Handicap Asiático {home_name} (-1.0)", "odd": o["ah_home_minus1"], "ev": ev, "conf": "Alta", "tipo": "alta",
-            "topicos": [f"Superioridade Tática em Casa com probabilidade de goleada.", "Proteção com devolução de aposta em caso de vitória simples."]
+    # Mercado 2: Visitante ou DNB Visitante
+    if stat_away["aproveitamento"] >= 60:
+        opcoes.append({
+            "titulo": f"Vitória — {away_name}",
+            "odd": odds["away"],
+            "conf": "Alta" if stat_away["aproveitamento"] >= 75 else "Média",
+            "tipo": "alta" if stat_away["aproveitamento"] >= 75 else "media",
+            "topicos": [
+                f"{away_name} tem excelente retrospecto fora de casa: {stat_away['aproveitamento']}% de aproveitamento.",
+                f"Ataque visitante marcando em média {stat_away['media_gols_pro']} gols por partida."
+            ]
+        })
+    else:
+        opcoes.append({
+            "titulo": f"{away_name} — Empate Anula (DNB)",
+            "odd": odds["dnb_away"],
+            "conf": "Média",
+            "tipo": "media",
+            "topicos": [
+                f"Proteção de aposta para {away_name} fora de casa.",
+                f"Desempenho recente fora: {stat_away['aproveitamento']}% dos pontos disputados."
+            ]
         })
 
-    # 5. Empate Anula (DNB) Visitante
-    if 0.40 <= prob_away <= 0.60:
-        prob_dnb = prob_away / (prob_home + prob_away)
-        ev = (prob_dnb * o["dnb_away"]) - 1.0
-        pool_mercados.append({
-            "titulo": f"{away_name} — Empate Anula (DNB)", "odd": o["dnb_away"], "ev": ev, "conf": "Alta", "tipo": "alta",
-            "topicos": [f"Proteção contra empate fora de casa.", f"Visitante invicto em {a['vitorias']+a['empates']} dos últimos jogos."]
+    # Mercado 3: Gols Over/Under
+    if exp_gols_total >= 2.5:
+        opcoes.append({
+            "titulo": "Mais de 2.5 Gols",
+            "odd": odds["over25"],
+            "conf": "Alta" if exp_gols_total >= 3.0 else "Média",
+            "tipo": "alta" if exp_gols_total >= 3.0 else "media",
+            "topicos": [
+                f"Expectativa de {exp_gols_total:.2f} gols com base no histórico recente dos dois times.",
+                f"{home_name} marca {stat_home['media_gols_pro']} gols/jogo e {away_name} marca {stat_away['media_gols_pro']} gols/jogo."
+            ]
+        })
+    else:
+        opcoes.append({
+            "titulo": "Menos de 2.5 Gols (Under)",
+            "odd": odds["under25"],
+            "conf": "Média",
+            "tipo": "media",
+            "topicos": [
+                f"Expectativa de jogo cadenciado: média projetada de apenas {exp_gols_total:.2f} gols.",
+                f"Defesas com média de {stat_home['media_gols_contra']} e {stat_away['media_gols_contra']} gols sofridos por jogo."
+            ]
         })
 
-    # 6. Empate Anula (DNB) Mandante
-    if 0.40 <= prob_home <= 0.60:
-        prob_dnb = prob_home / (prob_home + prob_away)
-        ev = (prob_dnb * o["dnb_home"]) - 1.0
-        pool_mercados.append({
-            "titulo": f"{home_name} — Empate Anula (DNB)", "odd": o["dnb_home"], "ev": ev, "conf": "Alta", "tipo": "alta",
-            "topicos": [f"Cobertura total contra empate no estádio local.", f"Mandante concedeu apenas {h['gols_contra']} gols/jogo."]
+    # Mercado 4: Ambas Marcam
+    if stat_home["media_gols_pro"] >= 1.2 and stat_away["media_gols_pro"] >= 1.2:
+        opcoes.append({
+            "titulo": "Ambas as Equipes Marcam (Sim)",
+            "odd": odds["btts_yes"],
+            "conf": "Alta",
+            "tipo": "alta",
+            "topicos": [
+                f"Ambos os ataques em boa fase: Mandante ({stat_home['media_gols_pro']} g/j) e Visitante ({stat_away['media_gols_pro']} g/j).",
+                "Histórico aponta alta probabilidade de gols para os dois lados."
+            ]
+        })
+    else:
+        opcoes.append({
+            "titulo": f"{home_name} — Mais de 1.5 Gols",
+            "odd": round(odds["home"] * 0.85, 2),
+            "conf": "Média",
+            "tipo": "media",
+            "topicos": [
+                f"Força ofensiva do mandante em casa ({stat_home['media_gols_pro']} gols/jogo).",
+                f"Visitante concedendo {stat_away['media_gols_contra']} gols por partida."
+            ]
         })
 
-    # 7. Over 2.5 Gols
-    prob_over25 = max(0.1, min(0.9, (exp_gols_total / 3.2)))
-    ev = (prob_over25 * o["over25"]) - 1.0
-    pool_mercados.append({
-        "titulo": "Mais de 2.5 gols no jogo", "odd": o["over25"], "ev": ev, "conf": "Alta" if prob_over25 > 0.58 else "Média",
-        "tipo": "alta" if prob_over25 > 0.58 else "media",
-        "topicos": [f"Média Combinada: {exp_gols_total:.2f} gols esperados no confronto.", f"Volume ofensivo somado de {total_chutes:.1f} chutes no alvo."]
-    })
-
-    # 8. Under 2.5 Gols (Para jogos truncados)
-    prob_under25 = 1.0 - prob_over25
-    ev = (prob_under25 * o["under25"]) - 1.0
-    pool_mercados.append({
-        "titulo": "Menos de 2.5 gols (Under)", "odd": o["under25"], "ev": ev, "conf": "Alta" if prob_under25 > 0.58 else "Média",
-        "tipo": "alta" if prob_under25 > 0.58 else "media",
-        "topicos": [f"Jogo Truncado: Expectativa estatística de apenas {exp_gols_total:.2f} gols no jogo.", "Defesas sólidas nos últimos recortes de mando."]
-    })
-
-    # 9. Gols Individuais do Visitante (Over 1.5 Visitante)
-    if exp_gols_away >= 1.6:
-        prob_away_o15 = min(0.85, exp_gols_away / 2.2)
-        ev = (prob_away_o15 * o["away_over15"]) - 1.0
-        pool_mercados.append({
-            "titulo": f"{away_name} — Mais de 1.5 Gols", "odd": o["away_over15"], "ev": ev, "conf": "Alta", "tipo": "alta",
-            "topicos": [f"Ataque Avassalador: Expectativa individual de {exp_gols_away:.1f} gols do visitante.", f"Mandante sofreu tentos em 80% dos jogos."]
-        })
-
-    # 10. Gols Individuais do Mandante (Over 1.5 Mandante)
-    if exp_gols_home >= 1.6:
-        prob_home_o15 = min(0.85, exp_gols_home / 2.2)
-        ev = (prob_home_o15 * o["home_over15"]) - 1.0
-        pool_mercados.append({
-            "titulo": f"{home_name} — Mais de 1.5 Gols", "odd": o["home_over15"], "ev": ev, "conf": "Alta", "tipo": "alta",
-            "topicos": [f"Fator Casa Inflacionado: Projeção de {exp_gols_home:.1f} gols para o mandante.", f"Média de {h['chutes']} chutes a gol por partida."]
-        })
-
-    # 11. Escanteios (Over 9.5)
-    if total_escanteios >= 9.8:
-        prob_corners = min(0.80, total_escanteios / 12.0)
-        ev = (prob_corners * o["corners_over95"]) - 1.0
-        pool_mercados.append({
-            "titulo": "Mais de 9.5 escanteios", "odd": o["corners_over95"], "ev": ev, "conf": "Média", "tipo": "media",
-            "topicos": [f"Alto Volume Lateral: Equipes somam média de {total_escanteios:.1f} cantos/jogo.", "Uso constante de pontas e cruzamentos na área."]
-        })
-
-    # 12. Cartões (Over 4.5 Cartões)
-    if total_cartoes >= 4.8:
-        prob_cards = min(0.80, total_cartoes / 6.5)
-        ev = (prob_cards * o["cards_over45"]) - 1.0
-        pool_mercados.append({
-            "titulo": "Mais de 4.5 cartões", "odd": o["cards_over45"], "ev": ev, "conf": "Média", "tipo": "media",
-            "topicos": [f"Confronto Físico/Faltoso: Média somada de {total_cartoes:.1f} cartões por jogo.", "Perfil de arbitragem e rivalidade elevada."]
-        })
-
-    # 13. Empate no 1º Tempo (HT X)
-    if 0.35 <= prob_home <= 0.45 and 0.35 <= prob_away <= 0.45:
-        prob_ht_draw = 0.48
-        ev = (prob_ht_draw * o["ht_draw"]) - 1.0
-        pool_mercados.append({
-            "titulo": "Empate no 1º Tempo (HT X)", "odd": o["ht_draw"], "ev": ev, "conf": "Média", "tipo": "media",
-            "topicos": [f"Equilíbrio Inicial: Estudo estatístico prevê 1º tempo estudado e truncado.", "Histórico de 0x0 ou 1x1 no intervalo."]
-        })
-
-    # SELEÇÃO DINÂMICA: SELECIONA APENAS OS 4 MERCADOS COM MAIOR VALOR ESPERADO (EV+) DO CONFRONTO
-    mercados_ordenados = sorted(pool_mercados, key=lambda x: x["ev"], reverse=True)
-    return mercados_ordenados[:4]
+    return opcoes[:4]
 
 def extrair_status_e_horario(fix):
     status_short = fix.get("status", {}).get("short", "")
@@ -411,7 +363,7 @@ def extrair_status_e_horario(fix):
         
     return status_label
 
-# 6. RENDERIZAÇÃO OTIMIZADA
+# 6. RENDERIZAÇÃO
 def renderizar_card_jogo_otimizado(item):
     fix = item["fixture"]
     league = item["league"]
@@ -420,7 +372,7 @@ def renderizar_card_jogo_otimizado(item):
 
     status_str = extrair_status_e_horario(fix)
     
-    oportunidades = processar_dados_partida_paralelo(
+    oportunidades = analisar_partida(
         home["id"], home["name"], away["id"], away["name"], fix["id"]
     )
 
@@ -428,14 +380,14 @@ def renderizar_card_jogo_otimizado(item):
         st.markdown(f"<h3 style='text-align: center; margin-bottom: 2px;'>{home['name']} x {away['name']}</h3>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align: center; color: #fbbf24; font-size: 13px; font-weight: 600;'>🏆 {league['country']} {league['name']} &nbsp;•&nbsp; {status_str}</p>", unsafe_allow_html=True)
 
-        st.markdown("#### 🎯 Dicas de Alto Valor (EV+)")
+        st.markdown("#### 🎯 Dicas Baseadas em Dados Reais")
 
         cols = st.columns(len(oportunidades))
 
         for idx, col in enumerate(cols):
             op = oportunidades[idx]
             badge_class = f"badge-{op['tipo']}"
-            odd_val = op['odd'] if op['odd'] else 1.80
+            odd_val = op['odd']
             
             with col:
                 st.markdown(f"""
@@ -448,7 +400,7 @@ def renderizar_card_jogo_otimizado(item):
                 </div>
                 """, unsafe_allow_html=True)
 
-        st.markdown("#### 📋 Embasamento Estatístico")
+        st.markdown("#### 📋 Embasamento Estatístico Real")
 
         html_analises_lote = []
         for op in oportunidades:
@@ -467,7 +419,7 @@ def renderizar_card_jogo_otimizado(item):
         
         st.markdown("".join(html_analises_lote), unsafe_allow_html=True)
 
-# 7. HEADER PRINCIPAL COM LOGO E ALTERNÂNCIA DE TEMA
+# 7. HEADER PRINCIPAL
 col_h1, col_h2, col_h3 = st.columns([1, 2, 1])
 
 with col_h3:
@@ -488,7 +440,7 @@ with col_h2:
         cor_titulo = "#38bdf8" if st.session_state["tema"] == "Escuro 🌙" else "#0284c7"
         st.markdown(f"<h1 style='text-align: center; color: {cor_titulo}; margin-bottom: 20px;'>⚽ ANALISTA PRO</h1>", unsafe_allow_html=True)
 
-# 8. FILTROS E EXECUÇÃO PRINCIPAL
+# 8. FILTROS E EXECUÇÃO
 now_utc = datetime.now(timezone.utc)
 agora_br = now_utc - timedelta(hours=3)
 
@@ -517,7 +469,7 @@ with col_f2:
     ligas_selecionadas_user = st.multiselect(
         "Filtrar Ligas Disponíveis no Dia:",
         options=options_ligas_dia,
-        placeholder="Todas as ligas com jogos hoje/amanhã (ou digite para filtrar)"
+        placeholder="Todas as ligas com jogos hoje/amanhã"
     )
 
 btn_buscar = st.button("🔍 CARREGAR PROGNÓSTICOS DA IA", use_container_width=True)
