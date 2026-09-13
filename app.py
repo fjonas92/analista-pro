@@ -155,20 +155,25 @@ btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES PRONTOS", use_con
 def buscar_partidas_api_football(data_str=None):
     url = "https://v3.football.api-sports.io/fixtures"
     headers = {"x-apisports-key": API_FOOTBALL_KEY}
-    
+
     if data_str:
-        params = {"date": data_str, "timezone": "America/Sao_Paulo"}
+        params = {"date": data_str}
     else:
-        params = {"next": "50", "timezone": "America/Sao_Paulo"}
+        params = {"next": "50"}
 
     try:
         res = requests.get(url, headers=headers, params=params, timeout=12)
         if res.status_code == 200:
-            return res.json().get("response", []), None
+            data = res.json()
+            errors = data.get("errors", {})
+            if errors and isinstance(errors, dict) and len(errors) > 0:
+                err_msg = ", ".join([f"{k}: {v}" for k, v in errors.items()])
+                return None, f"Erro da API: {err_msg}"
+            return data.get("response", []), None
         else:
-            return None, f"Erro API-Football: {res.status_code}"
+            return None, f"Erro na requisição à API-Football: Status {res.status_code}"
     except Exception as e:
-        return None, f"Erro de conexão: {str(e)}"
+        return None, f"Erro de conexão com o servidor: {str(e)}"
 
 
 def buscar_odds_bet365(fixture_id):
@@ -194,7 +199,7 @@ def buscar_odds_bet365(fixture_id):
             if data and "bookmakers" in data[0]:
                 bets = data[0]["bookmakers"][0].get("bets", [])
                 for b in bets:
-                    # 1X2 Match Winner
+                    # 1X2
                     if b.get("id") == 1:
                         for val in b.get("values", []):
                             if val.get("value") == "Home":
@@ -203,14 +208,14 @@ def buscar_odds_bet365(fixture_id):
                                 odds_dict["empate"] = str(val.get("odd"))
                             elif val.get("value") == "Away":
                                 odds_dict["fora"] = str(val.get("odd"))
-                    # Over/Under 2.5 Goals
+                    # Over/Under 2.5
                     elif b.get("id") == 5:
                         for val in b.get("values", []):
                             if val.get("value") == "Over 2.5":
                                 odds_dict["over25"] = str(val.get("odd"))
                             elif val.get("value") == "Under 2.5":
                                 odds_dict["under25"] = str(val.get("odd"))
-                    # Both Teams to Score (Ambas Marcam)
+                    # Ambas Marcam
                     elif b.get("id") == 8:
                         for val in b.get("values", []):
                             if val.get("value") == "Yes":
@@ -224,7 +229,7 @@ def buscar_odds_bet365(fixture_id):
 
 
 if btn_buscar:
-    with st.spinner("Buscando partidas e consultando Odds reais da Bet365..."):
+    with st.spinner("Buscando partidas e consultando Odds Bet365..."):
         agora_utc = datetime.now(timezone.utc)
         agora_br = agora_utc - timedelta(hours=3)
         hoje_local = agora_br.date()
@@ -240,7 +245,7 @@ if btn_buscar:
 
     if erro_api:
         st.error(f"⚠️ {erro_api}")
-    elif not jogos_raw:
+    elif jogos_raw is None or len(jogos_raw) == 0:
         st.warning("Nenhum evento futuro encontrado para este período.")
     else:
         jogos_processados = []
@@ -252,7 +257,7 @@ if btn_buscar:
             fixture_id = fixture.get("id")
             status_short = fixture.get("status", {}).get("short", "")
 
-            # Apenas jogos que AINDA NÃO COMEÇARAM
+            # Aceitar apenas partidas Não Iniciadas ou A Definir
             if status_short not in ["NS", "TBD"]:
                 continue
 
@@ -263,13 +268,9 @@ if btn_buscar:
             try:
                 dt_partida = datetime.fromisoformat(data_raw.replace("Z", "+00:00"))
                 dt_br = dt_partida - timedelta(hours=3)
-
-                # Descarte de jogos com horário já ultrapassado
-                if dt_br <= agora_br:
-                    continue
-
                 data_jogo = dt_br.date()
 
+                # Filtro específico para "Depois de Amanhã em Diante"
                 if "Depois de Amanhã" in opcao_filtro and data_jogo <= amanha_local:
                     continue
 
@@ -290,7 +291,7 @@ if btn_buscar:
             time_fora = teams.get("away", {}).get("name", "Visitante")
             liga_nome = league.get("name", "Futebol Profissional")
 
-            # Odds da Bet365
+            # Busca Odds
             odds_bet365 = buscar_odds_bet365(fixture_id)
 
             c = float(odds_bet365["casa"])
@@ -299,11 +300,9 @@ if btn_buscar:
             if c < f:
                 time_fav = time_casa
                 odd_fav = c
-                outro_time = time_fora
             else:
                 time_fav = time_fora
                 odd_fav = f
-                outro_time = time_casa
 
             dica_vitoria = f"Vitória do {time_fav} (Odd @{odd_fav})"
             dica_over15 = "Over 1.5 Gols (Odd @1.32)"
@@ -325,7 +324,7 @@ if btn_buscar:
                 dica_alta = f"Dupla Chance {time_fav} ou Empate (Odd @{odd_dc})"
                 odd_alta_val = odd_dc
                 dica_media = f"Ambas Marcam: SIM (Odd @{odds_bet365['btts_sim']})"
-                odd_media_val = float(odds_bet365['btts_sim'])
+                odd_media_val = float(odds_bet365["btts_sim"])
                 dica_baixa = f"Empate Anula: {time_fav} (Odd @{round(odd_fav * 0.82, 2)})"
 
                 just_alta = f"Partida parelha entre {time_casa} e {time_fora}. A cobertura de Dupla Chance garante o acerto mesmo em caso de empate, preservando a consistência do palpite."
@@ -371,9 +370,9 @@ if btn_buscar:
         if not jogos_processados:
             st.warning(f"Nenhum jogo pré-partida futuro encontrado para o filtro '{opcao_filtro}'.")
         else:
-            st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas com Odds Bet365!")
+            st.success(f"✅ {len(jogos_processados)} partidas pré-jogo encontradas!")
 
-            # LISTAGEM DAS ANÁLISES INDIVIDUAIS
+            # LISTAGEM DAS ANÁLISES
             for info, analise in jogos_processados:
                 with st.container():
                     st.markdown(
@@ -403,7 +402,6 @@ if btn_buscar:
                         st.markdown("---")
                         st.markdown("### 🎯 INDICAÇÕES E ANÁLISES DETALHADAS:")
 
-                        # DICA ALTA
                         st.markdown(
                             f"<span class='badge-alta'>🟢 CONFIANÇA ALTA</span> **{analise['dica_alta']}**",
                             unsafe_allow_html=True,
@@ -413,7 +411,6 @@ if btn_buscar:
                             unsafe_allow_html=True,
                         )
 
-                        # DICA MEDIA
                         st.markdown(
                             f"<span class='badge-media'>🟡 CONFIANÇA MÉDIA</span> **{analise['dica_media']}**",
                             unsafe_allow_html=True,
@@ -423,7 +420,6 @@ if btn_buscar:
                             unsafe_allow_html=True,
                         )
 
-                        # DICA BAIXA
                         st.markdown(
                             f"<span class='badge-baixa'>🔴 CONFIANÇA BAIXA</span> **{analise['dica_baixa']}**",
                             unsafe_allow_html=True,
@@ -434,16 +430,15 @@ if btn_buscar:
                         )
                         st.write("")
 
-            # --- SEÇÃO DE BILHETES PRONTOS (APENAS HOJE E AMANHÃ) ---
+            # BILHETES PRONTOS
             st.markdown("---")
             st.subheader("🔥 BILHETES PRONTOS DA BANCA (DUPLAS E MÚLTIPLA DO DIA) 🔥")
 
             jogos_bilhete = [j for j in jogos_processados if j[0]["eh_hoje_ou_amanha"]]
 
             if len(jogos_bilhete) < 2:
-                st.info("ℹ️ Os bilhetes prontos são gerados apenas para jogos de HOJE ou AMANHÃ.")
+                st.info("ℹ️ Os bilhetes prontos são gerados para jogos de HOJE ou AMANHÃ.")
             else:
-                # 1. DUPLAS FOCO EM FAVORITOS + OVER 1.5 GOLS (ODD MÍNIMA 1.60)
                 duplas = []
                 jogos_usados = set()
 
@@ -477,7 +472,6 @@ if btn_buscar:
                         f"• [{j2_i['data_hora']}] {j2_i['casa']} vs {j2_i['fora']} ➔ {p2}"
                     )
 
-                # 2. MÚLTIPLA DO DIA (ODD MÍNIMA 4.00)
                 odd_multipla_acc = 1.0
                 itens_multipla = []
 
