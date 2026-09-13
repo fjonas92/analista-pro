@@ -182,7 +182,7 @@ def buscar_odds_bet365(fixture_id):
                                 if 1.05 <= v <= 3.0: odd_corners = v
     return odd_1, odd_over25, odd_btts, odd_corners
 
-# ESTRUTURA ESTATÍSTICA PROFUNDA PARA AS ANÁLISES
+# ESTRUTURA ESTATÍSTICA PROFUNDA PARA AS ANÁLISES (SEM RECOMENDAÇÕES DE ODD TEXTUAL)
 def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, odd_btts, odd_corners):
     seed = fixture_id % 7
 
@@ -239,7 +239,7 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
                 "titulo": f"Vitória do {away_name}", "odd": 2.45, "conf": "Média", "pct": 62, "tipo": "media",
                 "topicos": [
                     f"<b>Eficiência em Transição:</b> O {away_name} possui a 3ª melhor taxa de aproveitamento em contra-ataques rápidos da liga (24% de conversão em gol).",
-                    f"<b>Fator Campo:</b> O fator casa e o apoio da torcida adversária exigem cautela na entrada de vitória seca."
+                    f"<b>Fator Campo:</b> O fator casa e o apoio da torcida adversária exigem cautela na análise de vitória seca."
                 ]
             },
             {
@@ -284,7 +284,7 @@ def gerar_analise_dinamica(fixture_id, home_name, away_name, odd_1, odd_over25, 
                 "topicos": [
                     f"<b>Histórico no Estádio:</b> O {home_name} venceu 4 dos últimos 5 embates diretos contra o {away_name} atuando em seus domínios.",
                     f"<b>Fase Técnica:</b> O time da casa acumula 3 vitórias consecutivas na competição, registrando média de 2.30 gols marcados por partida.",
-                    f"<b>Probabilidade Operacional:</b> O modelo Poisson aponta 58% de probabilidade pura de vitória mandante, superando a cotação oferecida."
+                    f"<b>Probabilidade Operacional:</b> O modelo Poisson aponta 58% de probabilidade pura de vitória mandante no cenário projetado."
                 ]
             },
             {
@@ -412,10 +412,8 @@ col_f1, col_f2 = st.columns([1, 2])
 with col_f1:
     opcao_filtro = st.radio("Selecione a data:", ["🔴 Jogos de Hoje", "🟡 Jogos de Amanhã"], horizontal=True)
 
-# DATA SELECIONADA
 data_alvo_str = agora_br.strftime("%Y-%m-%d") if "Hoje" in opcao_filtro else (agora_br + timedelta(days=1)).strftime("%Y-%m-%d")
 
-# REQUISIÇÃO DAS PARTIDAS DA DATA SELECIONADA
 if "last_date" not in st.session_state or st.session_state["last_date"] != data_alvo_str:
     params = {"timezone": "America/Sao_Paulo", "date": data_alvo_str}
     fixtures_data = api_get("fixtures", params)
@@ -424,10 +422,8 @@ if "last_date" not in st.session_state or st.session_state["last_date"] != data_
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
-# FILTRA JOGOS NÃO INICIADOS
 partidas_brutas = [item for item in raw_fixtures if item["fixture"]["status"]["short"] in ["NS", "TBD"]]
 
-# EXTRAI TODAS AS LIGAS DISPONÍVEIS EXCLUSIVAMENTE NO DIA
 ligas_do_dia_dict = {}
 for item in partidas_brutas:
     country = item["league"].get("country", "")
@@ -448,7 +444,6 @@ with col_f2:
 
 btn_buscar = st.button("🔍 CARREGAR PROGNÓSTICOS DA IA", use_container_width=True)
 
-# FILTRAGEM FINAL DOS JOGOS
 partidas_validas = []
 if ligas_selecionadas_user:
     for item in partidas_brutas:
@@ -469,7 +464,6 @@ else:
         home = item["teams"]["home"]
         away = item["teams"]["away"]
 
-        # CONVERSÃO E FORMATAÇÃO DO HORÁRIO DO JOGO (FUSO BRASÍLIA)
         iso_date = fix.get("date", "")
         horario_str = ""
         if iso_date:
@@ -489,7 +483,6 @@ else:
         with st.container(border=True):
             st.markdown(f"<h3 style='text-align: center; margin-bottom: 2px;'>{home['name']} x {away['name']}</h3>", unsafe_allow_html=True)
             
-            # EXIBIÇÃO DA LIGA E DO HORÁRIO
             texto_sub = f"🏆 {league['country']} {league['name']}"
             if horario_str:
                 texto_sub += f" &nbsp;•&nbsp; ⏰ {horario_str}"
@@ -518,7 +511,6 @@ else:
 
             st.markdown("#### 📋 Análises das Dicas")
 
-            # EXIBIÇÃO EM BLOCOS HTML RESISTENTES E ALTAMENTE DETALHADOS
             for op in oportunidades:
                 badge_tipo = op['tipo']
                 card_class = f"analysis-card analysis-{badge_tipo}"
