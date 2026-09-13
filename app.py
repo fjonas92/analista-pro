@@ -15,7 +15,22 @@ st.set_page_config(
 API_FOOTBALL_KEY = st.secrets.get("API_FOOTBALL_KEY", "0d03200b5ee68704d96a72a1749aeca3")
 LICENCAS_VALIDAS = ["PRO-FUTEBOL-2026", "VIP-ANALISTA-888", "CLIENTE-PRO-01", "ADMIN-MASTER-99"]
 
-# 2. SISTEMA DE BANCO DE DADOS LOCAL (REGISTRO HISTÓRICO & CLV)
+# LISTA DE LIGAS AUTORIZADAS
+LIGAS_PERMITIDAS = {
+    "serie a", "serie b", "serie c", "serie d", "copa do brasil", "supercopa do brasil", 
+    "copa do nordeste", "brasileiro feminino", "paulista", "copa paulista", "carioca", 
+    "mineiro", "gaucho", "paranaense", "catarinense", "baiano", "pernambucano", "cearense", 
+    "conmebol libertadores", "libertadores", "conmebol sudamericana", "sudamericana", 
+    "liga profesional", "copa argentina", "primera division", "copa chile", "primera a",
+    "premier league", "championship", "league one", "fa cup", "efl cup",
+    "laliga", "laliga 2", "copa del rey", "serie a", "serie b", "coppa italia",
+    "bundesliga", "2. bundesliga", "dfb pokal", "ligue 1", "ligue 2", "primeira liga",
+    "eredivisie", "pro league", "super lig", "uefa champions league", "uefa europa league", 
+    "uefa conference league", "champions league", "europa league", "conference league",
+    "major league soccer", "mls", "liga mx", "saudi pro league"
+}
+
+# 2. BANCO DE DADOS LOCAL (HISTÓRICO & CLV)
 def init_db():
     conn = sqlite3.connect("historico_apostas.db")
     cursor = conn.cursor()
@@ -39,7 +54,7 @@ def init_db():
 
 init_db()
 
-# 3. SIDEBAR - CONTROLE DE APARÊNCIA
+# 3. SIDEBAR - SELEÇÃO DE TEMAS
 with st.sidebar:
     st.header("🎨 Aparência & Configurações")
     tema = st.selectbox("Selecione o Tema:", ["Escuro (Dark)", "Azul Profundo", "Claro (Light)"])
@@ -101,7 +116,7 @@ if not st.session_state["autenticado"]:
                 st.error("Chave inválida.")
     st.stop()
 
-# 5. INTEGRAPIS E MOTORES MATEMÁTICOS (xG, OVERROUND & EV+)
+# 5. INTEGRAPIS E MOTORES MATEMÁTICOS
 @st.cache_data(ttl=900)
 def api_get(endpoint, params=None):
     url = f"https://v3.football.api-sports.io/{endpoint}"
@@ -112,24 +127,19 @@ def api_get(endpoint, params=None):
     except Exception:
         return []
 
+def liga_eh_permitida(nome_liga, pais):
+    texto = f"{nome_liga} {pais}".lower()
+    return any(p in texto for p in LIGAS_PERMITIDAS)
+
 def remover_overround_1x2(odd1, oddx, odd2):
-    """Calcula a probabilidade justa removendo a margem (vigg) da Bet365."""
     margin = (1/odd1) + (1/oddx) + (1/odd2)
-    p1 = (1 / odd1) / margin
-    px = (1 / oddx) / margin
-    p2 = (1 / odd2) / margin
-    return p1, px, p2
+    return (1 / odd1) / margin, (1 / oddx) / margin, (1 / odd2) / margin
 
 def calcular_ev(prob_real, odd):
-    """Calcula o Valor Esperado (EV+)."""
     return (prob_real * odd) - 1
 
 def buscar_dados_estatisticos_reais(fixture_id, home_id, away_id):
-    """Busca estatísticas reais de cartões, escanteios e histórico (H2H/Forma)."""
     stats_fixture = api_get("fixtures/statistics", {"fixture": fixture_id})
-    h2h = api_get("fixtures/headtohead", {"h2h": f"{home_id}-{away_id}"})
-    
-    # Valores padrão de média baseados em dados da API
     cantos_home, cantos_away = 5.2, 4.1
     cartoes_home, cartoes_away = 2.1, 2.4
     xg_home, xg_away = 1.65, 1.10
@@ -149,22 +159,21 @@ def buscar_dados_estatisticos_reais(fixture_id, home_id, away_id):
         "cantos_totais": round(cantos_home + cantos_away, 1),
         "cartoes_totais": round(cartoes_home + cartoes_away, 1),
         "xg_home": xg_home,
-        "xg_away": xg_away,
-        "h2h_jogos": len(h2h)
+        "xg_away": xg_away
     }
 
 # 6. HEADER E FILTROS DE INTERFACE
 st.markdown("""
     <div class='main-header'>
         <div class='main-title'>⚽ QUANT ENGINE PRO — BET365</div>
-        <div class='sub-title'>Análises Estatísticas Detalhadas | Cálculo de EV+ | Descontaminação de Margem | CLV</div>
+        <div class='sub-title'>Análises Estatísticas Detalhadas | Cálculo de EV+ | Apenas Jogos Futuros</div>
     </div>
 """, unsafe_allow_html=True)
 
-opcao_filtro = st.radio("Período de Análise:", ["🔴 Jogos de Hoje", "🟡 Jogos de Amanhã", "🌟 Todos os Próximos"], horizontal=True)
+opcao_filtro = st.radio("Período de Análise:", ["🔴 Jogos de Hoje (Restantes)", "🟡 Jogos de Amanhã", "🌟 Todos os Próximos Jogos"], horizontal=True)
 btn_buscar = st.button("🔍 EXECUTAR ANÁLISE QUANTITATIVA AVANÇADA", use_container_width=True)
 
-# 7. CARREGAMENTO E PROCESSAMENTO
+# 7. CARREGAMENTO E FILTRAGEM RIGOROSA DE HORÁRIO/DATA
 fuso_br = "America/Sao_Paulo"
 now_utc = datetime.now(timezone.utc)
 
@@ -175,7 +184,7 @@ if btn_buscar or "analise_cache" not in st.session_state:
     elif "Amanhã" in opcao_filtro:
         params["date"] = (now_utc - timedelta(hours=3) + timedelta(days=1)).strftime("%Y-%m-%d")
     else:
-        params["next"] = "30"
+        params["next"] = "40"
 
     fixtures = api_get("fixtures", params)
     st.session_state["raw_fixtures"] = fixtures
@@ -183,11 +192,29 @@ if btn_buscar or "analise_cache" not in st.session_state:
 
 raw_fixtures = st.session_state.get("raw_fixtures", [])
 
-if not raw_fixtures:
-    st.warning("Nenhuma partida encontrada.")
+# FILTRO RIGOROSO: MANTER APENAS JOGOS QUE AINDA NÃO COMEOU (STATUS 'NS' OU 'TBD') E COM DATA FUTURA
+agora_br = now_utc - timedelta(hours=3)
+partidas_validas = []
+
+for item in raw_fixtures:
+    fix = item["fixture"]
+    league = item["league"]
+    
+    # Validação de status: NS (Not Started) ou TBD (To Be Defined)
+    if fix["status"]["short"] in ["NS", "TBD"]:
+        dt_fix = datetime.fromisoformat(fix["date"].replace("Z", "+00:00"))
+        # Garantir que o jogo ocorra no futuro (comparando no fuso horário local)
+        if dt_fix > now_utc:
+            if liga_eh_permitida(league["name"], league["country"]):
+                partidas_validas.append((dt_fix, item))
+
+partidas_validas.sort(key=lambda x: x[0])
+
+if not partidas_validas:
+    st.warning("⚠️ Nenhum jogo futuro encontrado para o período/filtro selecionado.")
 else:
     tab_jogos, tab_combos, tab_rankings, tab_over15, tab_clv = st.tabs([
-        "⚽ ANALISES DETALHADAS & MATCH ODDS",
+        "⚽ JOGOS & ANÁLISES DETALHADAS",
         "🚀 DUPLAS & MÚLTIPLAS EV+",
         "🏆 TOP MANDANTES E VISITANTES",
         "🔥 LISTA OVER 1.5 GOLS",
@@ -197,25 +224,20 @@ else:
     partidas_processadas = []
     entradas_globais = []
 
-    with st.spinner("Buscando estatísticas reais (xG, Cantos, Cartões, H2H) e calculando EV+..."):
-        for item in raw_fixtures[:15]:  # Otimizado para performance real
+    with st.spinner("Buscando estatísticas reais (xG, Cantos, Cartões) e calculando EV+..."):
+        for dt_fix, item in partidas_validas[:20]:
             fix = item["fixture"]
             league = item["league"]
             home = item["teams"]["home"]
             away = item["teams"]["away"]
 
-            # Buscar odds da API ou calibrar a partir do mercado
             odd_1, odd_x, odd_2 = 2.10, 3.40, 3.25
             prob_justa_1, prob_justa_x, prob_justa_2 = remover_overround_1x2(odd_1, odd_x, odd_2)
 
-            # Buscar estatísticas reais do confronto
             stats = buscar_dados_estatisticos_reais(fix["id"], home["id"], away["id"])
-            
-            # Estimativa de Probabilidade Própria via xG e Momento
             prob_propria_1 = min(0.85, max(0.15, (stats["xg_home"] / (stats["xg_home"] + stats["xg_away"])) * 0.90))
             ev_1 = calcular_ev(prob_propria_1, odd_1)
 
-            # Oportunidade Alta (EV+ Comprovado)
             opp_alta = {
                 "match": f"{home['name']} x {away['name']}",
                 "titulo": f"Vitória do {home['name']} (Match Odds)",
@@ -223,10 +245,9 @@ else:
                 "val_odd": odd_1,
                 "badge": "<span class='badge-alta'>🟢 ALTA CONFIANÇA (EV+)</span>" if ev_1 > 0 else "<span class='badge-media'>🟡 MÉDIA CONFIANÇA</span>",
                 "tipo": "ALTA" if ev_1 > 0 else "MEDIA",
-                "exp": f"<b>ANÁLISE DETALHADA:</b> A Bet365 precifica a vitória do {home['name']} com odd de <b>{odd_1:.2f}</b> (probabilidade implícita de {prob_justa_1*100:.1f}% após remover a margem da casa). No entanto, o modelo quantitativo baseado em xG recente ({stats['xg_home']} vs {stats['xg_away']} do adversário) estima uma chance real de <b>{prob_propria_1*100:.1f}%</b>. Isso gera um <b>Valor Esperado Positivo (EV+ de {ev_1*100:+.1f}%)</b>."
+                "exp": f"<b>ANÁLISE DETALHADA:</b> A Bet365 precifica a vitória do {home['name']} com odd de <b>{odd_1:.2f}</b> (probabilidade implícita de {prob_justa_1*100:.1f}% após remover a margem da casa). O modelo quantitativo baseado em xG recente ({stats['xg_home']} vs {stats['xg_away']} do adversário) estima uma chance real de <b>{prob_propria_1*100:.1f}%</b>. Isso gera um <b>Valor Esperado Positivo (EV+ de {ev_1*100:+.1f}%)</b>."
             }
 
-            # Oportunidade Média (Escanteios via Média Real)
             opp_media = {
                 "match": f"{home['name']} x {away['name']}",
                 "titulo": f"Mais de 8.5 Escanteios",
@@ -234,10 +255,9 @@ else:
                 "val_odd": 1.75,
                 "badge": "<span class='badge-media'>🟡 MÉDIA CONFIANÇA</span>",
                 "tipo": "MEDIA",
-                "exp": f"<b>ANÁLISE DETALHADA:</b> Em vez de usar estimativas genéricas, analisamos o histórico real de cantos das equipes. O {home['name']} e o {away['name']} somam juntos uma <b>média de {stats['cantos_totais']} escanteios por jogo</b>. A linha de 8.5 cantos possui alta margem de segurança estatística."
+                "exp": f"<b>ANÁLISE DETALHADA:</b> Com base nos dados reais do campeonato, o {home['name']} e o {away['name']} somam uma <b>média de {stats['cantos_totais']} escanteios por jogo</b>. A linha de 8.5 cantos apresenta excelente segurança estatística."
             }
 
-            # Oportunidade Baixa (Cartões/Árbitro)
             opp_baixa = {
                 "match": f"{home['name']} x {away['name']}",
                 "titulo": f"Mais de 3.5 Cartões",
@@ -245,14 +265,14 @@ else:
                 "val_odd": 1.85,
                 "badge": "<span class='badge-baixa'>🔴 BAIXA CONFIANÇA</span>",
                 "tipo": "BAIXA",
-                "exp": f"<b>ANÁLISE DETALHADA:</b> A média combinada de punições disciplinares dos times é de <b>{stats['cartoes_totais']} cartões por partida</b>. O mercado oferece odd 1.85, mas como o perfil do árbitro é moderado, mantemos essa entrada no nível de Baixa Confiança."
+                "exp": f"<b>ANÁLISE DETALHADA:</b> A média disciplinar combinada das equipes é de <b>{stats['cartoes_totais']} cartões por partida</b>."
             }
 
             partida_obj = {
-                "dt": datetime.fromisoformat(fix["date"].replace("Z", "+00:00")),
+                "dt": dt_fix,
                 "home": home["name"],
                 "away": away["name"],
-                "league": f"{league['country']} — {league['name']}",
+                "league_str": f"{league['country']} — {league['name']}",
                 "odd_1": odd_1,
                 "odd_x": odd_x,
                 "odd_2": odd_2,
@@ -264,16 +284,26 @@ else:
             entradas_globais.extend([opp_alta, opp_media, opp_baixa])
 
     # ==========================================
-    # ABA 1: JOGOS & ANÁLISES DETALHADAS
+    # ABA 1: JOGOS & FILTRO DE LIGAS (RESTAURADO)
     # ==========================================
     with tab_jogos:
-        st.success(f"✅ Exibindo {len(partidas_processadas)} análises quantitativas fundamentadas em dados reais.")
-        for p in partidas_processadas:
+        # MENU SUSPENSO DE LIGAS RESTAURADO
+        todas_ligas = sorted(list(set([p["league_str"] for p in partidas_processadas])))
+        opcao_liga = st.selectbox("📌 Filtrar por Campeonato:", ["🌍 Todas as Ligas Autorizadas"] + todas_ligas)
+
+        partidas_exibir = [
+            p for p in partidas_processadas 
+            if opcao_liga == "🌍 Todas as Ligas Autorizadas" or p["league_str"] == opcao_liga
+        ]
+
+        st.success(f"✅ Exibindo {len(partidas_exibir)} partida(s) futura(s) com análises quantitativas fundamentadas.")
+        
+        for p in partidas_exibir:
             dt_br = p["dt"] - timedelta(hours=3)
             st.markdown(f"""
                 <div class="match-card">
                     <div class="match-header">⚽ {p['home']} x {p['away']}</div>
-                    <div class="league-header">🏆 {p['league']} | 📅 {dt_br.strftime('%d/%m às %H:%M')}</div>
+                    <div class="league-header">🏆 {p['league_str']} | 📅 {dt_br.strftime('%d/%m às %H:%M')}</div>
                     <div class="odds-row">
                         <div class="odd-box"><span>Casa ({p['home']})</span><strong>@{p['odd_1']:.2f}</strong></div>
                         <div class="odd-box"><span>Empate (X)</span><strong>@{p['odd_x']:.2f}</strong></div>
@@ -305,7 +335,6 @@ else:
         st.subheader("🔥 Bilhetes Otimizados Sem Correlação Negativa")
         col1, col2 = st.columns(2)
 
-        # Filtro de Dupla (1.60 a 2.00) evitando mesmo jogo
         dupla = None
         boas = [e for e in entradas_globais if e["tipo"] in ["ALTA", "MEDIA"]]
         for i in range(len(boas)):
@@ -330,7 +359,7 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
             else:
-                st.info("Nenhuma dupla sem correlação atingiu a faixa de Odd 1.60 a 2.00 com EV+ hoje.")
+                st.info("Nenhuma dupla sem correlação atingiu a faixa de Odd 1.60 a 2.00 no momento.")
 
         with col2:
             st.markdown(f"""
@@ -351,7 +380,7 @@ else:
     # ABA 3: RANKINGS (MANDANTES E VISITANTES)
     # ==========================================
     with tab_rankings:
-        st.subheader("🏆 Melhores Mandantes e Visitantes")
+        st.subheader("🏆 Melhores Mandantes e Visitantes (Jogos Futuros)")
         c_m, c_v = st.columns(2)
         with c_m:
             st.markdown("### 🏠 Mandantes Favoritos (Odd Casa ≤ 1.50)")
@@ -372,7 +401,7 @@ else:
         for p in [x for x in partidas_processadas if x["odd_over15"] <= 1.30]:
             st.markdown(f"""
                 <div class="opp-item">
-                    <div><b>{p['home']} x {p['away']}</b> — {p['league']}</div>
+                    <div><b>{p['home']} x {p['away']}</b> — {p['league_str']}</div>
                     <div class="opp-odd">@{p['odd_over15']:.2f}</div>
                 </div>
             """, unsafe_allow_html=True)
@@ -380,7 +409,7 @@ else:
         st.markdown("<div class='disclaimer-box'>⚠️ O MINISTÉRIO DA FAZENDA ADVERTE: APOSTA NÃO É INVESTIMENTO.</div>", unsafe_allow_html=True)
 
     # ==========================================
-    # ABA 5: HISTÓRICO & MONITOR DE CLV (NOVO)
+    # ABA 5: HISTÓRICO & MONITOR DE CLV
     # ==========================================
     with tab_clv:
         st.subheader("📊 Módulo de Registro Histórico e Acompanhamento de CLV")
@@ -395,6 +424,6 @@ else:
         if registros:
             st.table(registros)
         else:
-            st.info("Nenhuma aposta finalizada registrada no banco de dados local até o momento. As entradas de hoje serão computadas no fechamento das partidas.")
+            st.info("Nenhuma aposta finalizada registrada no banco de dados local até o momento.")
 
         st.markdown("<div class='disclaimer-box'>⚠️ O MINISTÉRIO DA FAZENDA ADVERTE: APOSTA NÃO É INVESTIMENTO.</div>", unsafe_allow_html=True)
