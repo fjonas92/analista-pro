@@ -156,14 +156,14 @@ def buscar_odds_reais_api(fixture_id):
     
     return o1, o2, o_15, o_25, o_btts, o_corn
 
-# GERADOR VARIADO E ÚNICO POR JOGO (VARIA OS 4 MERCADOS CONFORME O FIXTURE_ID)
+# GERADOR VARIADO E ÚNICO POR JOGO (SEM EXIBIÇÃO DE % DE CONFIANÇA)
 def gerar_mercados_unicos_por_jogo(fixture_id, home_name, away_name, odd_1, odd_2, odd_over15, odd_over25, odd_btts, odd_corners):
     variacao = fixture_id % 4
 
     if variacao == 0:
         return [
             {
-                "titulo": f"Vitória do {home_name} (casa)", "odd": odd_1, "conf": "Alta", "pct": 82, "tipo": "alta",
+                "titulo": f"Vitória do {home_name} (casa)", "odd": odd_1, "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Aproveitamento Mandante:</b> O {home_name} mantém consistência em seu estádio, com média de 2.10 gols marcados por partida.",
                     f"<b>Instabilidade Visitante:</b> O {away_name} cedeu espaços nos últimos jogos como visitante, registrando média de 1.80 gols sofridos.",
@@ -171,21 +171,21 @@ def gerar_mercados_unicos_por_jogo(fixture_id, home_name, away_name, odd_1, odd_
                 ]
             },
             {
-                "titulo": "Mais de 2.5 gols", "odd": odd_over25, "conf": "Alta", "pct": 78, "tipo": "alta",
+                "titulo": "Mais de 2.5 gols", "odd": odd_over25, "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Volume de Finalizações:</b> Ambas as equipes somam média conjunta superior a 11 chutes no alvo por jogo.",
                     f"<b>Transição Aberta:</b> Tendência de partida movimentada com chances claras de lado a lado."
                 ]
             },
             {
-                "titulo": "Ambas marcam – SIM", "odd": odd_btts, "conf": "Média", "pct": 66, "tipo": "media",
+                "titulo": "Ambas marcam – SIM", "odd": odd_btts, "conf": "Média", "tipo": "media",
                 "topicos": [
                     f"<b>Eficiência Visitante:</b> O {away_name} marcou gols em 8 de seus últimos 10 compromissos fora de casa.",
                     f"<b>Brecha Defensiva:</b> O {home_name} sofreu ao menos um gol nas últimas apresentações em casa."
                 ]
             },
             {
-                "titulo": "Mais de 8.5 escanteios", "odd": odd_corners, "conf": "Baixa", "pct": 54, "tipo": "baixa",
+                "titulo": "Mais de 8.5 escanteios", "odd": odd_corners, "conf": "Baixa", "tipo": "baixa",
                 "topicos": [
                     f"<b>Média de Cantos:</b> Projeção de tiros de canto alinhada à média recente dos clubes no torneio."
                 ]
@@ -194,7 +194,7 @@ def gerar_mercados_unicos_por_jogo(fixture_id, home_name, away_name, odd_1, odd_
     elif variacao == 1:
         return [
             {
-                "titulo": f"Empate ou {away_name} (Dupla Hipótese)", "odd": round(max(1.18, odd_2 * 0.65), 2), "conf": "Alta", "pct": 84, "tipo": "alta",
+                "titulo": f"Empate ou {away_name} (Dupla Hipótese)", "odd": round(max(1.18, odd_2 * 0.65), 2), "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Postura Visitante:</b> O {away_name} mantém bloco defensivo organizado fora de casa, dificultando as ações dos mandantes.",
                     f"<b>Desempenho Mandante:</b> O {home_name} oscilou nos últimos testes e apresenta dificuldades na criação no terço final.",
@@ -202,19 +202,19 @@ def gerar_mercados_unicos_por_jogo(fixture_id, home_name, away_name, odd_1, odd_
                 ]
             },
             {
-                "titulo": "Mais de 1.5 gols", "odd": odd_over15, "conf": "Alta", "pct": 88, "tipo": "alta",
+                "titulo": "Mais de 1.5 gols", "odd": odd_over15, "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Frequência no Placar:</b> Ocorrência de pelo menos 2 gols em 90% dos confrontos disputados pelas equipes na temporada."
                 ]
             },
             {
-                "titulo": f"Vitória do {away_name} (Empate Anula)", "odd": round(max(1.35, odd_2 * 0.8), 2), "conf": "Média", "pct": 65, "tipo": "media",
+                "titulo": f"Vitória do {away_name} (Empate Anula)", "odd": round(max(1.35, odd_2 * 0.8), 2), "conf": "Média", "tipo": "media",
                 "topicos": [
                     f"<b>Aproveitamento Fora:</b> O {away_name} apresenta números superiores na taxa de conversão em contra-ataques."
                 ]
             },
             {
-                "titulo": "Mais de 9.5 escanteios", "odd": round(odd_corners * 1.2, 2), "conf": "Baixa", "pct": 51, "tipo": "baixa",
+                "titulo": "Mais de 9.5 escanteios", "odd": round(odd_corners * 1.2, 2), "conf": "Baixa", "tipo": "baixa",
                 "topicos": [
                     f"<b>Bolas Paradas:</b> Jogo concentrado pelo setor lateral, gerando média elevada de escanteios cedidos."
                 ]
@@ -223,26 +223,26 @@ def gerar_mercados_unicos_por_jogo(fixture_id, home_name, away_name, odd_1, odd_
     elif variacao == 2:
         return [
             {
-                "titulo": "Mais de 0.5 gols no 1º Tempo", "odd": 1.38, "conf": "Alta", "pct": 80, "tipo": "alta",
+                "titulo": "Mais de 0.5 gols no 1º Tempo", "odd": 1.38, "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Intensidade Inicial:</b> Ambas as equipes costumam impor ritmo forte nos primeiros 30 minutos de partida.",
                     f"<b>Histórico de Gols Precoces:</b> 75% dos jogos recentes tiveram redes balançadas na etapa inicial."
                 ]
             },
             {
-                "titulo": f"Empate ou {home_name} (Dupla Hipótese)", "odd": round(max(1.15, odd_1 * 0.7), 2), "conf": "Alta", "pct": 86, "tipo": "alta",
+                "titulo": f"Empate ou {home_name} (Dupla Hipótese)", "odd": round(max(1.15, odd_1 * 0.7), 2), "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Solidez Local:</b> O {home_name} é um adversário indigesto em seus domínios, com baixo índice de derrotas."
                 ]
             },
             {
-                "titulo": "Ambas marcam – NÃO", "odd": round(max(1.75, odd_btts * 1.1), 2), "conf": "Média", "pct": 62, "tipo": "media",
+                "titulo": "Ambas marcam – NÃO", "odd": round(max(1.75, odd_btts * 1.1), 2), "conf": "Média", "tipo": "media",
                 "topicos": [
                     f"<b>Estilo Truncado:</b> Expectativa de controle tático no meio-campo com pouca liberdade para finalizações limpas."
                 ]
             },
             {
-                "titulo": "Menos de 3.5 gols", "odd": 1.32, "conf": "Baixa", "pct": 53, "tipo": "baixa",
+                "titulo": "Menos de 3.5 gols", "odd": 1.32, "conf": "Baixa", "tipo": "baixa",
                 "topicos": [
                     f"<b>Projeção de Placar:</b> Tendência de placar magro de acordo com as métricas de gols esperados (xG)."
                 ]
@@ -251,26 +251,26 @@ def gerar_mercados_unicos_por_jogo(fixture_id, home_name, away_name, odd_1, odd_
     else:
         return [
             {
-                "titulo": f"Vitória do {away_name} (fora)", "odd": odd_2, "conf": "Alta" if odd_2 < 2.0 else "Média", "pct": 74, "tipo": "alta" if odd_2 < 2.0 else "media",
+                "titulo": f"Vitória do {away_name} (fora)", "odd": odd_2, "conf": "Alta" if odd_2 < 2.0 else "Média", "tipo": "alta" if odd_2 < 2.0 else "media",
                 "topicos": [
                     f"<b>Momento Técnico:</b> O {away_name} vem embalado com sequências positivas e alto poder de decisão no ataque.",
                     f"<b>Desfalques Mandante:</b> O {home_name} entra em campo com ausências importantes na sua espinha dorsal."
                 ]
             },
             {
-                "titulo": "Mais de 2.5 gols", "odd": odd_over25, "conf": "Alta", "pct": 79, "tipo": "alta",
+                "titulo": "Mais de 2.5 gols", "odd": odd_over25, "conf": "Alta", "tipo": "alta",
                 "topicos": [
                     f"<b>Retrospecto Aberto:</b> Confronto direto marcado por histórico recente de placares movimentados."
                 ]
             },
             {
-                "titulo": "Ambas marcam – SIM", "odd": odd_btts, "conf": "Média", "pct": 67, "tipo": "media",
+                "titulo": "Ambas marcam – SIM", "odd": odd_btts, "conf": "Média", "tipo": "media",
                 "topicos": [
                     f"<b>Padrão Ofensivo:</b> Ambas as defesas cederam oportunidades claras nos jogos mais recentes."
                 ]
             },
             {
-                "titulo": "Mais de 4.5 cartões", "odd": 1.75, "conf": "Baixa", "pct": 50, "tipo": "baixa",
+                "titulo": "Mais de 4.5 cartões", "odd": 1.75, "conf": "Baixa", "tipo": "baixa",
                 "topicos": [
                     f"<b>Arbitragem Disciplinar:</b> Perfil do árbitro indicado sinaliza partida com índice moderado a alto de faltas."
                 ]
@@ -340,7 +340,7 @@ def renderizar_card_jogo(item):
                     <div class="opp-title">{op['titulo']}</div>
                     <div class="opp-bottom">
                         <span class="opp-odd">Odd {odd_val:.2f}</span>
-                        <span class="{badge_class}">{op['conf']} ({op['pct']}%)</span>
+                        <span class="{badge_class}">{op['conf']}</span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -355,7 +355,7 @@ def renderizar_card_jogo(item):
             
             html_analise = f"""
             <div class="{card_class}">
-                <div class="analysis-header">{op['titulo']} — {op['conf']} Confiança ({op['pct']}%)</div>
+                <div class="analysis-header">{op['titulo']} — {op['conf']} Confiança</div>
                 <ul class="analysis-list">
                     {topicos_html}
                 </ul>
