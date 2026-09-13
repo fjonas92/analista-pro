@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Oculta menus do Streamlit, cabeçalhos, rodapé e ícone do GitHub
+# Oculta menus do Streamlit, cabeçalhos, rodapé e estiliza a interface
 st.markdown(
     """
     <style>
@@ -131,30 +131,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-dt_hoje = datetime.now()
-dt_amanha = dt_hoje + timedelta(days=1)
-dt_depois = dt_hoje + timedelta(days=2)
-
-datas_map = {
-    "Todos os Próximos Jogos": "todos",
-    "Hoje": dt_hoje.strftime("%Y-%m-%d"),
-    "Amanhã": dt_amanha.strftime("%Y-%m-%d"),
-    "Depois de Amanhã": dt_depois.strftime("%Y-%m-%d"),
-}
-
-col_sel, col_btn = st.columns([1, 2])
-
-with col_sel:
-    opcao_dia = st.selectbox("Selecione o Filtro de Data:", list(datas_map.keys()))
-
-with col_btn:
-    st.write("")
-    st.write("")
-    btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES", use_container_width=True)
+# Botão principal de buscar jogos
+btn_buscar = st.button("🔍 GERAR ANÁLISES E MONTAR BILHETES (TODOS OS PRÓXIMOS JOGOS)", use_container_width=True)
 
 
 def carregar_jogos_api():
-    # Consulta a lista geral de próximos eventos esportivos
     url = f"https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu,us&markets=h2h,totals"
     try:
         res = requests.get(url, timeout=12)
@@ -167,9 +148,7 @@ def carregar_jogos_api():
 
 
 if btn_buscar:
-    filtro_data = datas_map[opcao_dia]
-
-    with st.spinner("Buscando partidas disponíveis..."):
+    with st.spinner("Buscando todos os próximos jogos disponíveis..."):
         jogos_raw, erro = carregar_jogos_api()
 
     if erro:
@@ -180,7 +159,7 @@ if btn_buscar:
         jogos_processados = []
 
         for item in jogos_raw:
-            # Garante que só processamos futebol
+            # Filtra apenas futebol
             sport_key = item.get("sport_key", "")
             if "soccer" not in sport_key:
                 continue
@@ -191,22 +170,15 @@ if btn_buscar:
             data_raw = item.get("commence_time", "")
 
             data_formatada = "Data N/A"
-            data_jogo_local_str = ""
 
             try:
                 dt_utc = datetime.strptime(data_raw, "%Y-%m-%dT%H:%M:%SZ").replace(
                     tzinfo=timezone.utc
                 )
-                dt_local = dt_utc - timedelta(hours=3)  # Fuso de Brasília
+                dt_local = dt_utc - timedelta(hours=3)  # Horário de Brasília
                 data_formatada = dt_local.strftime("%d/%m - %H:%M")
-                data_jogo_local_str = dt_local.strftime("%Y-%m-%d")
             except Exception:
                 pass
-
-            # Filtra data apenas se não for 'todos'
-            if filtro_data != "todos" and data_jogo_local_str:
-                if data_jogo_local_str != filtro_data:
-                    continue
 
             odd_casa, odd_empate, odd_fora = "N/A", "N/A", "N/A"
             odd_over25, odd_under25 = "N/A", "N/A"
@@ -294,9 +266,7 @@ if btn_buscar:
             jogos_processados.append((info, analise))
 
         if not jogos_processados:
-            st.warning(
-                "Nenhum jogo de futebol encontrado para esta seleção de filtro. Tente selecionar 'Todos os Próximos Jogos'."
-            )
+            st.warning("Nenhum jogo de futebol encontrado no momento.")
         else:
             st.success(f"✅ {len(jogos_processados)} partidas encontradas!")
 
